@@ -6,24 +6,37 @@ import { s3Client } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { revalidatePath } from "next/cache";
 
-// 1. Acción del QR (Automático A_BORDO)
+// 1. Acción del QR (Automático A_BORDO con Validación)
 export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
   try {
+    // A. Buscamos al usuario
     const user = await prisma.user.findUnique({
       where: { qrCode: qrCode }
     });
 
     if (!user) return { success: false, message: "Usuario no encontrado ❌" };
 
-    // --- LÓGICA DE S3 RESTAURADA ---
-    
-    // 1. Convertir base64 a Buffer (binario)
+    // ============================================================
+    // 🛑 NUEVA VALIDACIÓN: Verificar si ya está a bordo
+    // ============================================================
+    const ultimoRegistro = await prisma.assistance.findFirst({
+      where: { userId: user.id },
+      orderBy: { timestamp: 'desc' } // Traemos el más reciente
+    });
+
+    // Si existe un registro anterior Y su estado es A_BORDO...
+    if (ultimoRegistro?.estado === 'A_BORDO') {
+      return { 
+        success: false, 
+        message: `⚠️ ${user.nombre} ya se encuentra A BORDO.` 
+      };
+    }
+    // ============================================================
+
+    // B. Lógica de subida a S3
     const buffer = Buffer.from(fotoBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
-    
-    // 2. Crear nombre único
     const fileName = `${user.qrCode}_${Date.now()}.jpg`;
 
-    // 3. Configurar el comando de subida
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_BUCKET_NAME,
       Key: fileName,
@@ -31,15 +44,11 @@ export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
       ContentType: "image/jpeg",
     });
 
-    // 4. ¡ENVIAR A S3! (Esto faltaba, por eso s3Client no se usaba)
     await s3Client.send(command);
 
-    // 5. Construir la URL pública
     const photoUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 
-    // -------------------------------
-
-    // Guardar en Base de Datos
+    // C. Guardar en Base de Datos
     await prisma.assistance.create({
       data: {
         userId: user.id,
@@ -51,13 +60,13 @@ export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
     revalidatePath('/dashboard'); 
     return { success: true, message: `¡Bienvenido a bordo, ${user.nombre}! 🚢` };
 
-  } catch (error) { // Quitamos el :any para que el linter no llore
+  } catch (error) { 
     console.error("Error en registrarAsistencia:", error);
     return { success: false, message: "Error interno al registrar" };
   }
 }
 
-// 2. Acción Manual (Desde el Dashboard)
+// 2. Acción Manual (Desde el Dashboard - Esta queda igual)
 export async function registrarManual(userId: string, estado: 'A_BORDO' | 'EN_TIERRA' | 'PERMISO' | 'AUTORIZADO') {
   try {
     await prisma.assistance.create({
