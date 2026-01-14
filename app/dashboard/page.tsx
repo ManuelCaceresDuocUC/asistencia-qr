@@ -55,7 +55,11 @@ export default async function DashboardPage() {
                 <tr key={registro.id} className="hover:bg-gray-700/50 transition">
                   <td className="p-4 text-gray-400">
                     {new Date(registro.timestamp).toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})} <br/>
-                    <span className="text-xs">{new Date(registro.timestamp).toLocaleDateString()}</span>
+                    <span className="text-xs">{new Date(registro.timestamp).toLocaleDateString('es-CL',{
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'America/Santiago'
+                    })}</span>
                   </td>
                   <td className="p-4 font-bold">{registro.user.nombre}</td>
                   <td className="p-4">
