@@ -25,7 +25,7 @@ export default function ScanPage() {
       
       if (codigoLeido) {
         setProcesando(true);
-        setMensaje('📸 Procesando y subiendo foto...');
+        setMensaje('📸 Procesando y registrando');
         setColorEstado('text-blue-400');
 
         try {
@@ -79,7 +79,7 @@ export default function ScanPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
       <h1 className={`text-3xl font-bold mb-6 ${colorEstado}`}>
-        {procesando ? 'Procesando...' : 'Kiosco de Asistencia'}
+        {procesando ? 'Procesando...' : 'Parte Banda ESNAVAL'}
       </h1>
       
       <div className={`w-full max-w-sm aspect-square border-4 rounded-xl overflow-hidden shadow-lg relative transition-colors duration-300 ${procesando ? 'border-blue-500' : 'border-yellow-400'}`}>

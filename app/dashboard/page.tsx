@@ -1,90 +1,77 @@
 // app/dashboard/page.tsx
 import { prisma } from "@/lib/db";
 import Link from "next/link";
+import ManualEntry from "@/components/ManualEntry"; // Importamos el form
 
-// Hacemos que la página no se guarde en caché para ver siempre datos nuevos
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  // 1. Buscamos las asistencias e incluimos los datos del usuario
+  // 1. Buscamos asistencias
   const asistencias = await prisma.assistance.findMany({
-    orderBy: {
-      timestamp: 'desc', // Las más nuevas primero
-    },
-    include: {
-      user: true, // Trae el nombre del usuario asociado
-    },
+    orderBy: { timestamp: 'desc' },
+    include: { user: true },
   });
+
+  // 2. Buscamos usuarios para el dropdown
+  const users = await prisma.user.findMany({
+    orderBy: { nombre: 'asc' }
+  });
+
+  // Función para colores según estado
+  const getBadgeColor = (estado: string) => {
+    switch (estado) {
+      case 'A_BORDO': return 'bg-green-900 text-green-300 border-green-700';
+      case 'EN_TIERRA': return 'bg-yellow-900 text-yellow-300 border-yellow-700';
+      case 'PERMISO': return 'bg-purple-900 text-purple-300 border-purple-700';
+      default: return 'bg-gray-700 text-gray-300';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
+        
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-yellow-500">📋 Historial de Asistencias</h1>
-          <Link 
-            href="/scan" 
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
-          >
-            📷 Ir al Escáner
-          </Link>
+          <h1 className="text-3xl font-bold text-yellow-500">📋 Bitácora de Personal</h1>
+          <Link href="/scan" className="text-blue-400 hover:underline">Ir al Escáner →</Link>
         </div>
 
+        {/* Formulario de registro manual */}
+        <ManualEntry users={users} />
+
+        {/* Tabla */}
         <div className="bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-700">
           <table className="w-full text-left">
             <thead className="bg-gray-950 text-gray-400 uppercase text-sm">
               <tr>
                 <th className="p-4">Hora</th>
                 <th className="p-4">Nombre</th>
+                <th className="p-4">Estado</th>
                 <th className="p-4">Evidencia</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {asistencias.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="p-8 text-center text-gray-500">
-                    Aún no hay registros de asistencia.
+              {asistencias.map((registro) => (
+                <tr key={registro.id} className="hover:bg-gray-700/50 transition">
+                  <td className="p-4 text-gray-400">
+                    {new Date(registro.timestamp).toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})} <br/>
+                    <span className="text-xs">{new Date(registro.timestamp).toLocaleDateString()}</span>
+                  </td>
+                  <td className="p-4 font-bold">{registro.user.nombre}</td>
+                  <td className="p-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getBadgeColor(registro.estado)}`}>
+                      {registro.estado.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    {registro.evidenceUrl ? (
+                      <a href={registro.evidenceUrl} target="_blank" className="text-blue-400 hover:underline text-sm">Ver Foto 📸</a>
+                    ) : (
+                      <span className="text-gray-600 text-sm italic">Registro Manual</span>
+                    )}
                   </td>
                 </tr>
-              ) : (
-                asistencias.map((registro) => (
-                  <tr key={registro.id} className="hover:bg-gray-700/50 transition">
-                    <td className="p-4">
-                      {new Date(registro.timestamp).toLocaleString('es-CL', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        day: '2-digit',
-                        month: 'short'
-                      })}
-                    </td>
-                    <td className="p-4 font-medium text-lg">
-                      {registro.user.nombre}
-                      <span className="block text-xs text-gray-500">{registro.user.qrCode}</span>
-                    </td>
-                    <td className="p-4">
-                      {registro.evidenceUrl ? (
-                        <div className="relative group w-16 h-16">
-                            {/* Usamos img normal para no configurar dominios de Next.js todavía */}
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                                src={registro.evidenceUrl} 
-                                alt="Evidencia" 
-                                className="w-16 h-16 object-cover rounded-md border border-gray-600 group-hover:scale-150 transition-transform origin-left z-10 relative"
-                            />
-                            <a 
-                                href={registro.evidenceUrl} 
-                                target="_blank" 
-                                className="text-xs text-blue-400 hover:underline mt-1 block"
-                            >
-                                Ver full
-                            </a>
-                        </div>
-                      ) : (
-                        <span className="text-gray-600">Sin foto</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>
