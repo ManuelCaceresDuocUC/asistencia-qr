@@ -87,6 +87,7 @@ export default function ScanPage() {
             onScan={handleScan}
             allowMultiple={true} 
             scanDelay={2000}
+            constraints={{ facingMode: 'user' }}
             // Importante: Pausar el escáner visualmente si estamos procesando (opcional)
         />
         
