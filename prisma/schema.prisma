@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"  // <--- CAMBIO IMPORTANTE AQUÍ
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,10 +15,11 @@ enum EstadoAsistencia {
   PERMISO
   AUTORIZADO
 }
+
 model User {
   id          String   @id @default(uuid())
   nombre      String
-  email       String?  @unique
+  // email    String?  <-- ESTA LÍNEA LA BORRAMOS
   qrCode      String   @unique
   createdAt   DateTime @default(now())
   assistances Assistance[]
@@ -28,7 +29,6 @@ model Assistance {
   id            String   @id @default(uuid())
   timestamp     DateTime @default(now())
   evidenceUrl   String?
-  // 2. Agregamos el campo de estado con valor por defecto
   estado        EstadoAsistencia @default(A_BORDO)
   
   userId        String
