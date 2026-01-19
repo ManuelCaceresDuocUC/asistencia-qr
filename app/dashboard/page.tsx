@@ -2,37 +2,41 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import ManualEntry from "@/components/ManualEntry"; 
 import DateFilter from "@/components/DateFilter";
+import { unstable_noStore as noStore } from 'next/cache'; // 👈 IMPORTANTE
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-interface SearchParamsProps {
-  searchParams: { date?: string };
-}
-
-export default async function DashboardPage({ searchParams }: SearchParamsProps) {
-  // 1. OBTENER FECHA CORRECTA (CHILE)
-  // Usamos Intl para forzar la zona horaria de Chile, incluso si el servidor está en Londres.
-  const chileTime = new Date().toLocaleDateString('en-CA', {
-    timeZone: 'America/Santiago', // 👈 ESTO ES LA CLAVE
-  });
+// Definimos props de forma más genérica para evitar conflictos de tipos
+export default async function DashboardPage(props: { searchParams: { [key: string]: string | string[] | undefined } }) {
   
-  // Si no viene fecha en la URL, usamos la fecha chilena real
-  const selectedDateStr = searchParams?.date || chileTime;
+  // 1. ☢️ ANULAR CACHÉ: Esto obliga a ejecutar la lógica en cada petición
+  noStore();
 
-  // 2. DEFINIR RANGO DE BÚSQUEDA (00:00 a 23:59 Chile)
-  // Construimos la fecha forzando el offset de zona.
-  // En lugar de "Z" (UTC), convertimos ese string a un objeto Date UTC manualmente.
+  // 2. OBTENER PARAMETROS (Compatible con Next.js 14 y 15)
+  // En versiones muy nuevas, searchParams podría ser una promesa, por eso accedemos con cuidado.
+  const searchParams = props.searchParams;
+  const dateFromUrl = typeof searchParams.date === 'string' ? searchParams.date : undefined;
+
+  // 3. LOG DE DEPURACIÓN (Mira tu terminal de VS Code cuando recargues la página)
+  console.log("========================================");
+  console.log("📥 URL Params recibidos:", searchParams);
+  console.log("📅 Fecha extraída:", dateFromUrl);
+
+  // 4. CALCULAR FECHA CHILE
+  const chileTime = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+  const selectedDateStr = dateFromUrl || chileTime;
   
-  // Opción Robusta: Creamos la fecha asumiendo las 04:00 UTC (aprox media noche Chile)
-  // Esto cubre la mayoría de los casos.
+  console.log("🎯 Fecha final usada para filtro:", selectedDateStr);
+  console.log("========================================");
+
+  // 5. RANGO DE FECHAS (04:00 UTC a 04:00 UTC del día siguiente)
   const startOfDay = new Date(`${selectedDateStr}T04:00:00.000Z`);
-  
   const endOfDay = new Date(startOfDay);
   endOfDay.setDate(endOfDay.getDate() + 1);
   endOfDay.setMilliseconds(-1); 
 
-  // 3. OBTENER DATOS
+  // 6. CONSULTA BASE DE DATOS
   const allUsers = await prisma.user.findMany({
     orderBy: { nombre: 'asc' }
   });
@@ -48,7 +52,7 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     include: { user: true },
   });
 
-  // 4. CALCULAR ESTADÍSTICAS
+  // Lógica de contadores (sin cambios)
   const estadoActualPorUsuario = new Map();
   asistenciasDelDia.forEach((registro) => {
     if (!estadoActualPorUsuario.has(registro.userId)) {
@@ -69,7 +73,6 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
       else if (estado === 'AUTORIZADO') autorizado++;
     }
   });
-
   const sinMarcar = sinRegistroIds.size;
 
   const getBadgeColor = (estado: string) => {
@@ -86,7 +89,6 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* Encabezado */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-yellow-500">
              📋 Bitácora: <span className="text-white">{selectedDateStr}</span>
@@ -99,8 +101,8 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
           </div>
         </div>
 
-        {/* Tarjetas KPI */}
-        <div key={selectedDateStr} className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Usamos Key Random para forzar repintado si cambia algo raro */}
+        <div key={selectedDateStr + Math.random()} className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-green-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
             <p className="text-2xl font-bold text-white">{aBordo}</p>
@@ -125,7 +127,6 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
 
         <ManualEntry users={allUsers} />
 
-        {/* Tabla */}
         <div className="bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-700">
           <div className="p-4 bg-gray-950 border-b border-gray-700 flex justify-between items-center">
              <h3 className="font-bold text-gray-300">Historial del día ({selectedDateStr})</h3>
@@ -145,7 +146,9 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
                 {asistenciasDelDia.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-gray-500 italic">
-                      No hay movimientos registrados en esta fecha.
+                      No hay registros para la fecha <span className="font-bold text-white">{selectedDateStr}</span>.
+                      <br/>
+                      <span className="text-xs text-gray-600">Revisando entre: {startOfDay.toISOString()} y {endOfDay.toISOString()}</span>
                     </td>
                   </tr>
                 ) : (
