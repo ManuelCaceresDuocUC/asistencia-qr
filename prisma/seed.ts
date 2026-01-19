@@ -25,11 +25,12 @@ async function main() {
     { nombre: "C1 C. Aguila", qrCode: "602414-7" },
     { nombre: "C2 F. Perez", qrCode: "617517-5" },
     { nombre: "C2 M. Araya", qrCode: "616217-5" },
+    { nombre: "C2 D. Cabrera", qrCode: "DCabrera"},
+    { nombre: "C2 O. Martinez", qrCode: "OMartinez"},
     { nombre: "C2 N. Manriquez", qrCode: "648220-9" },
-    { nombre: "C2 K. Vega", qrCode: "629621-6" },
-    { nombre: "C2 G. Lopez", qrCode: "629021-1" },
     { nombre: "C2 B. Astudillo", qrCode: "628121-7" },
     { nombre: "C2 P. Villar", qrCode: "625222-7" },
+    { nombre: "C2 Peña", qrCode: "FPeña"},
     { nombre: "C2 D. Orellana", qrCode: "624722-3" },
     { nombre: "Z1 M. Cáceres", qrCode: "609923-6" },
     { nombre: "Z1 D. Carvajal", qrCode: "610023-3" },
@@ -38,7 +39,13 @@ async function main() {
     { nombre: "Z1 N. Vega", qrCode: "629725-4" },
     { nombre: "Z1 A. Abarca", qrCode: "628225-7" },
     { nombre: "Z1 A. Leiton", qrCode: "629025-8" },
-    { nombre: "Z1 A. Garcia", qrCode: "628825-1" }
+    { nombre: "Z1 A. Garcia", qrCode: "628825-1" },
+    { nombre: "Z1 F. Vidal", qrCode: "FVidal"},
+    { nombre: "Z1 Pastor", qrCode: "FPastor"},
+    { nombre: "Z1 Sazo", qrCode: "BSazo"},
+    { nombre: "Z1 Guzman", qrCode: "CGuzman"},
+    { nombre: "Z1 Rodriguez", qrCode: "NRodriguez"},
+    { nombre: "Z1 Guerra", qrCode: "SGuerra"}
   ];
 
   console.log('🌱 Comenzando la carga de datos...')
