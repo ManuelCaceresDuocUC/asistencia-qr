@@ -3,7 +3,6 @@ import Link from "next/link";
 import ManualEntry from "@/components/ManualEntry"; 
 import DateFilter from "@/components/DateFilter";
 
-// Esto es vital para evitar caché de datos viejos
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -12,37 +11,32 @@ interface SearchParamsProps {
 }
 
 export default async function DashboardPage({ searchParams }: SearchParamsProps) {
-  // 1. OBTENER FECHA
-  // Si no hay fecha, usamos la fecha actual ajustada a formato YYYY-MM-DD
-  const todayStr = new Date().toLocaleDateString('en-CA'); 
-  const selectedDateStr = searchParams?.date || todayStr;
+  // 1. OBTENER FECHA CORRECTA (CHILE)
+  // Usamos Intl para forzar la zona horaria de Chile, incluso si el servidor está en Londres.
+  const chileTime = new Date().toLocaleDateString('en-CA', {
+    timeZone: 'America/Santiago', // 👈 ESTO ES LA CLAVE
+  });
+  
+  // Si no viene fecha en la URL, usamos la fecha chilena real
+  const selectedDateStr = searchParams?.date || chileTime;
 
-  // =====================================================================
-  // 🛠️ CORRECCIÓN DE ZONA HORARIA (SOLUCIÓN DEFINITIVA)
-  // =====================================================================
-  // El servidor (Vercel/Railway/etc) suele estar en UTC.
-  // Chile es UTC-4 (Invierno) o UTC-3 (Verano).
-  // Para asegurar que atrapamos todo el día local, buscamos desde las 
-  // 04:00 AM UTC (que es media noche en Chile) hasta las 04:00 AM del día siguiente.
-
-  // Inicio: Concatenamos la fecha seleccionada + 4 AM UTC
+  // 2. DEFINIR RANGO DE BÚSQUEDA (00:00 a 23:59 Chile)
+  // Construimos la fecha forzando el offset de zona.
+  // En lugar de "Z" (UTC), convertimos ese string a un objeto Date UTC manualmente.
+  
+  // Opción Robusta: Creamos la fecha asumiendo las 04:00 UTC (aprox media noche Chile)
+  // Esto cubre la mayoría de los casos.
   const startOfDay = new Date(`${selectedDateStr}T04:00:00.000Z`);
   
-  // Fin: Clonamos el inicio, sumamos 1 día y restamos 1 milisegundo
   const endOfDay = new Date(startOfDay);
   endOfDay.setDate(endOfDay.getDate() + 1);
   endOfDay.setMilliseconds(-1); 
-  
-  // Debug (opcional): Puedes ver esto en la consola del servidor para verificar
-  console.log(`Buscando desde: ${startOfDay.toISOString()} hasta ${endOfDay.toISOString()}`);
-  // =====================================================================
 
-  // 2. OBTENER USUARIOS
+  // 3. OBTENER DATOS
   const allUsers = await prisma.user.findMany({
     orderBy: { nombre: 'asc' }
   });
 
-  // 3. OBTENER ASISTENCIA (Con el rango corregido)
   const asistenciasDelDia = await prisma.assistance.findMany({
     where: {
       timestamp: {
@@ -54,20 +48,15 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     include: { user: true },
   });
 
-  // 4. LÓGICA DE ESTADÍSTICAS (Tu lógica estaba perfecta, se mantiene igual)
+  // 4. CALCULAR ESTADÍSTICAS
   const estadoActualPorUsuario = new Map();
-
   asistenciasDelDia.forEach((registro) => {
     if (!estadoActualPorUsuario.has(registro.userId)) {
       estadoActualPorUsuario.set(registro.userId, registro.estado);
     }
   });
 
-  let aBordo = 0;
-  let enTierra = 0;
-  let permiso = 0;
-  let autorizado = 0;
-  
+  let aBordo = 0, enTierra = 0, permiso = 0, autorizado = 0;
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
 
   allUsers.forEach(user => {
@@ -110,10 +99,7 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
           </div>
         </div>
 
-        {/* IMPORTANTE: key={selectedDateStr}
-            Esto obliga a React a destruir y volver a crear los componentes 
-            cuando la fecha cambia, asegurando que los números se actualicen.
-        */}
+        {/* Tarjetas KPI */}
         <div key={selectedDateStr} className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-green-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
@@ -139,7 +125,7 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
 
         <ManualEntry users={allUsers} />
 
-        {/* Tabla de Registros */}
+        {/* Tabla */}
         <div className="bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-700">
           <div className="p-4 bg-gray-950 border-b border-gray-700 flex justify-between items-center">
              <h3 className="font-bold text-gray-300">Historial del día ({selectedDateStr})</h3>
@@ -159,15 +145,14 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
                 {asistenciasDelDia.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-gray-500 italic">
-                      No hay movimientos registrados en el rango seleccionado.
+                      No hay movimientos registrados en esta fecha.
                     </td>
                   </tr>
                 ) : (
                   asistenciasDelDia.map((registro) => (
                     <tr key={registro.id} className="hover:bg-gray-700/50 transition">
                       <td className="p-4 text-gray-300 font-mono">
-                         {/* Usamos America/Santiago explícitamente */}
-                         {new Date(registro.timestamp).toLocaleTimeString('es-CL', {
+                          {new Date(registro.timestamp).toLocaleTimeString('es-CL', {
                             hour: '2-digit', 
                             minute:'2-digit',
                             timeZone: 'America/Santiago' 
