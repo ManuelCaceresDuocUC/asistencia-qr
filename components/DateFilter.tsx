@@ -1,33 +1,48 @@
-// components/DateFilter.tsx
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+// Ya no necesitamos useRouter
+import { useSearchParams } from 'next/navigation';
 
 export default function DateFilter() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Obtenemos la fecha de la URL o usamos la de hoy
+  // 1. CORRECCIÓN DE FECHA LOCAL (CHILE)
+  // toISOString() usa UTC. Si son las 21:00 en Chile, UTC es mañana.
+  // Usamos 'en-CA' porque devuelve formato YYYY-MM-DD local.
+  const today = new Date().toLocaleDateString('en-CA');
+  
   const dateParam = searchParams.get('date');
-  const today = new Date().toISOString().split('T')[0];
-  const [date, setDate] = useState(dateParam || today);
+  // Si hay fecha en la URL usala, si no, usa la de hoy local
+  const date = dateParam || today;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
-    setDate(newDate);
-    // Actualizamos la URL para que el servidor recargue los datos
-    router.push(`/dashboard?date=${newDate}`);
+    
+    // 2. RECARGA FORZADA (NUCLEAR OPTION ☢️)
+    // En lugar de router.push, manipulamos window.location directamente.
+    // Esto obliga al navegador a destruir la página y cargarla de cero.
+    // Garantiza que la base de datos se consulte de nuevo.
+    
+    const params = new URLSearchParams(window.location.search);
+    
+    if (newDate) {
+      params.set('date', newDate);
+    } else {
+      params.delete('date');
+    }
+
+    // Al asignar esto, el navegador recarga automáticamente
+    window.location.search = params.toString();
   };
 
   return (
-    <div className="flex items-center gap-2 bg-gray-800 p-3 rounded-lg border border-gray-700">
-      <label className="text-gray-400 text-sm font-bold">Filtrar por Día:</label>
+    <div className="flex items-center gap-2 bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-md">
+      <label className="text-gray-400 text-sm font-bold">📅 Filtrar por Día:</label>
       <input 
         type="date" 
         value={date}
         onChange={handleChange}
-        className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+        className="bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 text-sm focus:outline-none focus:border-yellow-500 font-mono cursor-pointer"
       />
     </div>
   );

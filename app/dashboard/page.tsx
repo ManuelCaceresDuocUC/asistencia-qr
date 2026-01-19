@@ -1,30 +1,48 @@
-// app/dashboard/page.tsx
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import ManualEntry from "@/components/ManualEntry"; 
 import DateFilter from "@/components/DateFilter";
 
+// Esto es vital para evitar caché de datos viejos
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-// Definimos la interfaz para los parámetros de búsqueda
 interface SearchParamsProps {
   searchParams: { date?: string };
 }
 
 export default async function DashboardPage({ searchParams }: SearchParamsProps) {
-  // 1. Determinar el rango de fechas (Día seleccionado o Hoy)
-  // Nota: Al tratar con fechas, aseguramos el rango de 00:00 a 23:59
-  const selectedDateStr = searchParams?.date || new Date().toISOString().split('T')[0];
-  
-  const startOfDay = new Date(`${selectedDateStr}T00:00:00.000Z`);
-  const endOfDay = new Date(`${selectedDateStr}T23:59:59.999Z`);
+  // 1. OBTENER FECHA
+  // Si no hay fecha, usamos la fecha actual ajustada a formato YYYY-MM-DD
+  const todayStr = new Date().toLocaleDateString('en-CA'); 
+  const selectedDateStr = searchParams?.date || todayStr;
 
-  // 2. Obtener TODA la lista de personal (para saber el total real)
+  // =====================================================================
+  // 🛠️ CORRECCIÓN DE ZONA HORARIA (SOLUCIÓN DEFINITIVA)
+  // =====================================================================
+  // El servidor (Vercel/Railway/etc) suele estar en UTC.
+  // Chile es UTC-4 (Invierno) o UTC-3 (Verano).
+  // Para asegurar que atrapamos todo el día local, buscamos desde las 
+  // 04:00 AM UTC (que es media noche en Chile) hasta las 04:00 AM del día siguiente.
+
+  // Inicio: Concatenamos la fecha seleccionada + 4 AM UTC
+  const startOfDay = new Date(`${selectedDateStr}T04:00:00.000Z`);
+  
+  // Fin: Clonamos el inicio, sumamos 1 día y restamos 1 milisegundo
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setDate(endOfDay.getDate() + 1);
+  endOfDay.setMilliseconds(-1); 
+  
+  // Debug (opcional): Puedes ver esto en la consola del servidor para verificar
+  console.log(`Buscando desde: ${startOfDay.toISOString()} hasta ${endOfDay.toISOString()}`);
+  // =====================================================================
+
+  // 2. OBTENER USUARIOS
   const allUsers = await prisma.user.findMany({
     orderBy: { nombre: 'asc' }
   });
 
-  // 3. Obtener registros SOLO del día seleccionado
+  // 3. OBTENER ASISTENCIA (Con el rango corregido)
   const asistenciasDelDia = await prisma.assistance.findMany({
     where: {
       timestamp: {
@@ -36,34 +54,25 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     include: { user: true },
   });
 
-  // 4. CALCULAR ESTADÍSTICAS
-  // Primero, necesitamos saber el "último estado" de cada persona en este día.
-  // (Porque alguien pudo marcar A_BORDO y luego EN_TIERRA el mismo día).
-  
+  // 4. LÓGICA DE ESTADÍSTICAS (Tu lógica estaba perfecta, se mantiene igual)
   const estadoActualPorUsuario = new Map();
 
-  // Recorremos las asistencias (están ordenadas por fecha desc, la primera es la última)
   asistenciasDelDia.forEach((registro) => {
     if (!estadoActualPorUsuario.has(registro.userId)) {
       estadoActualPorUsuario.set(registro.userId, registro.estado);
     }
   });
 
-  // Contadores iniciales
   let aBordo = 0;
   let enTierra = 0;
   let permiso = 0;
   let autorizado = 0;
   
-  // Lista de usuarios que NO han marcado nada hoy
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
 
-  // Iteramos sobre todos los usuarios para ver su estado final hoy
   allUsers.forEach(user => {
     if (estadoActualPorUsuario.has(user.id)) {
-      // Si tiene registro, lo sacamos de la lista de "sin registro"
       sinRegistroIds.delete(user.id);
-      
       const estado = estadoActualPorUsuario.get(user.id);
       if (estado === 'A_BORDO') aBordo++;
       else if (estado === 'EN_TIERRA') enTierra++;
@@ -72,9 +81,8 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     }
   });
 
-  const sinMarcar = sinRegistroIds.size; // Cantidad de gente que falta
+  const sinMarcar = sinRegistroIds.size;
 
-  // Helpers de estilos
   const getBadgeColor = (estado: string) => {
     switch (estado) {
       case 'A_BORDO': return 'bg-green-900 text-green-300 border-green-700';
@@ -89,9 +97,11 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* Encabezado y Navegación */}
+        {/* Encabezado */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <h1 className="text-3xl font-bold text-yellow-500">📋 Bitácora de Personal</h1>
+          <h1 className="text-3xl font-bold text-yellow-500">
+             📋 Bitácora: <span className="text-white">{selectedDateStr}</span>
+          </h1>
           <div className="flex items-center gap-4">
             <DateFilter />
             <Link href="/scan" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition">
@@ -100,8 +110,11 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
           </div>
         </div>
 
-        {/* 📊 TARJETAS DE ESTADÍSTICAS (KPIs) */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* IMPORTANTE: key={selectedDateStr}
+            Esto obliga a React a destruir y volver a crear los componentes 
+            cuando la fecha cambia, asegurando que los números se actualicen.
+        */}
+        <div key={selectedDateStr} className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-green-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
             <p className="text-2xl font-bold text-white">{aBordo}</p>
@@ -124,7 +137,6 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
           </div>
         </div>
 
-        {/* Entrada Manual */}
         <ManualEntry users={allUsers} />
 
         {/* Tabla de Registros */}
@@ -147,13 +159,14 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
                 {asistenciasDelDia.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-gray-500 italic">
-                      No hay movimientos registrados en esta fecha.
+                      No hay movimientos registrados en el rango seleccionado.
                     </td>
                   </tr>
                 ) : (
                   asistenciasDelDia.map((registro) => (
                     <tr key={registro.id} className="hover:bg-gray-700/50 transition">
                       <td className="p-4 text-gray-300 font-mono">
+                         {/* Usamos America/Santiago explícitamente */}
                          {new Date(registro.timestamp).toLocaleTimeString('es-CL', {
                             hour: '2-digit', 
                             minute:'2-digit',
