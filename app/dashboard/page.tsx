@@ -2,29 +2,37 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import ManualEntry from "@/components/ManualEntry"; 
 import DateFilter from "@/components/DateFilter";
-import { unstable_noStore as noStore } from 'next/cache'; // 👈 IMPORTANTE
+import { unstable_noStore as noStore } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// Definimos props de forma más genérica para evitar conflictos de tipos
-export default async function DashboardPage(props: { searchParams: { [key: string]: string | string[] | undefined } }) {
+// 1. DEFINICIÓN DE TIPOS PARA NEXT.JS 15/16
+// searchParams ahora es una PROMESA
+interface Props {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function DashboardPage(props: Props) {
   
-  // 1. ☢️ ANULAR CACHÉ: Esto obliga a ejecutar la lógica en cada petición
+  // 2. ☢️ ANULAR CACHÉ
   noStore();
 
-  // 2. OBTENER PARAMETROS (Compatible con Next.js 14 y 15)
-  // En versiones muy nuevas, searchParams podría ser una promesa, por eso accedemos con cuidado.
-  const searchParams = props.searchParams;
+  // 3. 🛑 ESPERAR LOS PARÁMETROS (EL CAMBIO CLAVE)
+  // Tenemos que poner 'await' antes de usar props.searchParams
+  const searchParams = await props.searchParams;
+  
   const dateFromUrl = typeof searchParams.date === 'string' ? searchParams.date : undefined;
 
-  // 3. LOG DE DEPURACIÓN (Mira tu terminal de VS Code cuando recargues la página)
+  // LOG DE DEPURACIÓN (Ahora sí mostrará los datos reales)
   console.log("========================================");
-  console.log("📥 URL Params recibidos:", searchParams);
+  console.log("📥 URL Params (Ya procesados):", searchParams);
   console.log("📅 Fecha extraída:", dateFromUrl);
 
   // 4. CALCULAR FECHA CHILE
   const chileTime = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+  
+  // Si dateFromUrl existe, lo usamos. Si no, usamos chileTime.
   const selectedDateStr = dateFromUrl || chileTime;
   
   console.log("🎯 Fecha final usada para filtro:", selectedDateStr);
@@ -52,7 +60,7 @@ export default async function DashboardPage(props: { searchParams: { [key: strin
     include: { user: true },
   });
 
-  // Lógica de contadores (sin cambios)
+  // --- LÓGICA DE CONTADORES (IGUAL QUE ANTES) ---
   const estadoActualPorUsuario = new Map();
   asistenciasDelDia.forEach((registro) => {
     if (!estadoActualPorUsuario.has(registro.userId)) {
@@ -101,7 +109,7 @@ export default async function DashboardPage(props: { searchParams: { [key: strin
           </div>
         </div>
 
-        {/* Usamos Key Random para forzar repintado si cambia algo raro */}
+        {/* Key Random para forzar actualización visual */}
         <div key={selectedDateStr + Math.random()} className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-green-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
