@@ -6,22 +6,43 @@ import { s3Client } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { revalidatePath } from "next/cache";
 
-// 1. Acción del QR (Se mantiene igual, no la toques)
+// 1. Acción del QR (Corregida: Solo valida el día actual)
 export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
-  // ... (Tu código del QR aquí, igual que antes) ...
-  // Solo pego la parte manual abajo para no hacer spam de código
   try {
-    const user = await prisma.user.findUnique({ where: { qrCode: qrCode } });
+    const user = await prisma.user.findUnique({
+      where: { qrCode: qrCode }
+    });
+
     if (!user) return { success: false, message: "Usuario no encontrado ❌" };
 
-    const ultimoRegistro = await prisma.assistance.findFirst({
-      where: { userId: user.id },
+    // ============================================================
+    // 🛑 VALIDACIÓN CORREGIDA: Solo mirar HOY
+    // ============================================================
+    
+    // 1. Calculamos el inicio del día actual (00:00:00)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    // 2. Buscamos el último registro PERO solo de hoy
+    const ultimoRegistroHoy = await prisma.assistance.findFirst({
+      where: { 
+        userId: user.id,
+        timestamp: {
+          gte: startOfDay // "Mayor o igual a hoy a las 00:00"
+        }
+      },
       orderBy: { timestamp: 'desc' }
     });
 
-    if (ultimoRegistro?.estado === 'A_BORDO') {
-      return { success: false, message: `⚠️ ${user.nombre} ya se encuentra A BORDO.` };
+    // 3. Validamos sobre el registro de HOY. 
+    // Si no hay registro hoy (es null), pasa directo (nuevo día).
+    if (ultimoRegistroHoy?.estado === 'A_BORDO') {
+      return { 
+        success: false, 
+        message: `⚠️ ${user.nombre} ya marcó entrada HOY.` 
+      };
     }
+    // ============================================================
 
     const buffer = Buffer.from(fotoBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
     const fileName = `${user.qrCode}_${Date.now()}.jpg`;
@@ -34,6 +55,7 @@ export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
     });
 
     await s3Client.send(command);
+
     const photoUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
 
     await prisma.assistance.create({
