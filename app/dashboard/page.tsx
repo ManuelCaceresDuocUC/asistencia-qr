@@ -4,27 +4,30 @@ import Link from "next/link";
 import ManualEntry from "@/components/ManualEntry"; 
 import DateFilter from "@/components/DateFilter";
 
+// 🛑 Forzamos a que esta página NUNCA se guarde en caché estático
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-// Definimos la interfaz para los parámetros de búsqueda
 interface SearchParamsProps {
   searchParams: { date?: string };
 }
 
 export default async function DashboardPage({ searchParams }: SearchParamsProps) {
-  // 1. Determinar el rango de fechas (Día seleccionado o Hoy)
-  // Nota: Al tratar con fechas, aseguramos el rango de 00:00 a 23:59
-  const selectedDateStr = searchParams?.date || new Date().toISOString().split('T')[0];
+  // 1. FECHA CORRECTA (LOCAL)
+  // Usamos 'en-CA' para obtener YYYY-MM-DD en hora local, no UTC (que podría ser mañana)
+  const todayLocal = new Date().toLocaleDateString('en-CA');
+  const selectedDateStr = searchParams?.date || todayLocal;
   
-  const startOfDay = new Date(`${selectedDateStr}T00:00:00.000Z`);
-  const endOfDay = new Date(`${selectedDateStr}T23:59:59.999Z`);
+  // Construimos el rango del día completo
+  // Al concatenar la hora, forzamos la búsqueda en ese rango
+  const startOfDay = new Date(`${selectedDateStr}T00:00:00`);
+  const endOfDay = new Date(`${selectedDateStr}T23:59:59.999`);
 
-  // 2. Obtener TODA la lista de personal (para saber el total real)
+  // 2. Consultas
   const allUsers = await prisma.user.findMany({
     orderBy: { nombre: 'asc' }
   });
 
-  // 3. Obtener registros SOLO del día seleccionado
   const asistenciasDelDia = await prisma.assistance.findMany({
     where: {
       timestamp: {
@@ -36,34 +39,24 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     include: { user: true },
   });
 
-  // 4. CALCULAR ESTADÍSTICAS
-  // Primero, necesitamos saber el "último estado" de cada persona en este día.
-  // (Porque alguien pudo marcar A_BORDO y luego EN_TIERRA el mismo día).
-  
+  // 3. Lógica de Estadísticas (Tu lógica original estaba bien, la mantengo igual)
   const estadoActualPorUsuario = new Map();
-
-  // Recorremos las asistencias (están ordenadas por fecha desc, la primera es la última)
   asistenciasDelDia.forEach((registro) => {
     if (!estadoActualPorUsuario.has(registro.userId)) {
       estadoActualPorUsuario.set(registro.userId, registro.estado);
     }
   });
 
-  // Contadores iniciales
   let aBordo = 0;
   let enTierra = 0;
   let permiso = 0;
   let autorizado = 0;
   
-  // Lista de usuarios que NO han marcado nada hoy
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
 
-  // Iteramos sobre todos los usuarios para ver su estado final hoy
   allUsers.forEach(user => {
     if (estadoActualPorUsuario.has(user.id)) {
-      // Si tiene registro, lo sacamos de la lista de "sin registro"
       sinRegistroIds.delete(user.id);
-      
       const estado = estadoActualPorUsuario.get(user.id);
       if (estado === 'A_BORDO') aBordo++;
       else if (estado === 'EN_TIERRA') enTierra++;
@@ -72,9 +65,8 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     }
   });
 
-  const sinMarcar = sinRegistroIds.size; // Cantidad de gente que falta
+  const sinMarcar = sinRegistroIds.size;
 
-  // Helpers de estilos
   const getBadgeColor = (estado: string) => {
     switch (estado) {
       case 'A_BORDO': return 'bg-green-900 text-green-300 border-green-700';
@@ -89,9 +81,10 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* Encabezado y Navegación */}
+        {/* Encabezado */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <h1 className="text-3xl font-bold text-yellow-500">📋 Bitácora de Personal</h1>
+          {/* Mostramos la fecha seleccionada en el título */}
+          <h1 className="text-3xl font-bold text-yellow-500">📋 Bitácora: {selectedDateStr}</h1>
           <div className="flex items-center gap-4">
             <DateFilter />
             <Link href="/scan" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition">
@@ -100,87 +93,95 @@ export default async function DashboardPage({ searchParams }: SearchParamsProps)
           </div>
         </div>
 
-        {/* 📊 TARJETAS DE ESTADÍSTICAS (KPIs) */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-green-500 shadow-lg">
-            <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
-            <p className="text-2xl font-bold text-white">{aBordo}</p>
-          </div>
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-yellow-500 shadow-lg">
-            <p className="text-gray-400 text-xs uppercase font-bold">En Tierra</p>
-            <p className="text-2xl font-bold text-white">{enTierra}</p>
-          </div>
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-purple-500 shadow-lg">
-            <p className="text-gray-400 text-xs uppercase font-bold">Permiso</p>
-            <p className="text-2xl font-bold text-white">{permiso}</p>
-          </div>
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-blue-500 shadow-lg">
-            <p className="text-gray-400 text-xs uppercase font-bold">Autorizado</p>
-            <p className="text-2xl font-bold text-white">{autorizado}</p>
-          </div>
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-red-500 shadow-lg">
-            <p className="text-gray-400 text-xs uppercase font-bold">Sin Marcar</p>
-            <p className="text-2xl font-bold text-red-400">{sinMarcar}</p>
-          </div>
-        </div>
+        {/* 🛑 IMPORTANTE: key={selectedDateStr} 
+            Esto obliga a React a "reiniciar" esta sección cuando cambia la fecha,
+            asegurando que los números se actualicen visualmente.
+        */}
+        <div key={selectedDateStr} className="animate-fadeIn">
+            
+            {/* Tarjetas KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+              <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-green-500 shadow-lg">
+                <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
+                <p className="text-2xl font-bold text-white">{aBordo}</p>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-yellow-500 shadow-lg">
+                <p className="text-gray-400 text-xs uppercase font-bold">En Tierra</p>
+                <p className="text-2xl font-bold text-white">{enTierra}</p>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-purple-500 shadow-lg">
+                <p className="text-gray-400 text-xs uppercase font-bold">Permiso</p>
+                <p className="text-2xl font-bold text-white">{permiso}</p>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-blue-500 shadow-lg">
+                <p className="text-gray-400 text-xs uppercase font-bold">Autorizado</p>
+                <p className="text-2xl font-bold text-white">{autorizado}</p>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-red-500 shadow-lg">
+                <p className="text-gray-400 text-xs uppercase font-bold">Sin Marcar</p>
+                <p className="text-2xl font-bold text-red-400">{sinMarcar}</p>
+              </div>
+            </div>
 
-        {/* Entrada Manual */}
-        <ManualEntry users={allUsers} />
+            {/* Entrada Manual */}
+            <ManualEntry users={allUsers} />
 
-        {/* Tabla de Registros */}
-        <div className="bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-700">
-          <div className="p-4 bg-gray-950 border-b border-gray-700 flex justify-between items-center">
-             <h3 className="font-bold text-gray-300">Historial del día ({selectedDateStr})</h3>
-             <span className="text-xs text-gray-500">Total registros: {asistenciasDelDia.length}</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-950/50 text-gray-400 uppercase text-xs">
-                <tr>
-                  <th className="p-4">Hora</th>
-                  <th className="p-4">Nombre</th>
-                  <th className="p-4">Estado</th>
-                  <th className="p-4">Evidencia</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700 text-sm">
-                {asistenciasDelDia.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="p-8 text-center text-gray-500 italic">
-                      No hay movimientos registrados en esta fecha.
-                    </td>
-                  </tr>
-                ) : (
-                  asistenciasDelDia.map((registro) => (
-                    <tr key={registro.id} className="hover:bg-gray-700/50 transition">
-                      <td className="p-4 text-gray-300 font-mono">
-                         {new Date(registro.timestamp).toLocaleTimeString('es-CL', {
-                            hour: '2-digit', 
-                            minute:'2-digit',
-                            timeZone: 'America/Santiago' 
-                          })}
-                      </td>
-                      <td className="p-4 font-bold text-white">{registro.user.nombre}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-md text-xs font-bold border ${getBadgeColor(registro.estado)}`}>
-                          {registro.estado.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        {registro.evidenceUrl ? (
-                          <a href={registro.evidenceUrl} target="_blank" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1">
-                            <span>📷</span> Ver Foto
-                          </a>
-                        ) : (
-                          <span className="text-gray-600 italic">Manual</span>
-                        )}
-                      </td>
+            {/* Tabla de Registros */}
+            <div className="bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-700 mt-6">
+              <div className="p-4 bg-gray-950 border-b border-gray-700 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-300">Historial del día</h3>
+                  <span className="text-xs text-gray-500">Total: {asistenciasDelDia.length}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-950/50 text-gray-400 uppercase text-xs">
+                    <tr>
+                      <th className="p-4">Hora</th>
+                      <th className="p-4">Nombre</th>
+                      <th className="p-4">Estado</th>
+                      <th className="p-4">Evidencia</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700 text-sm">
+                    {asistenciasDelDia.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-gray-500 italic">
+                          No hay movimientos registrados para el {selectedDateStr}.
+                        </td>
+                      </tr>
+                    ) : (
+                      asistenciasDelDia.map((registro) => (
+                        <tr key={registro.id} className="hover:bg-gray-700/50 transition">
+                          <td className="p-4 text-gray-300 font-mono">
+                              {new Date(registro.timestamp).toLocaleTimeString('es-CL', {
+                                hour: '2-digit', 
+                                minute:'2-digit',
+                                timeZone: 'America/Santiago' 
+                              })}
+                          </td>
+                          <td className="p-4 font-bold text-white">{registro.user.nombre}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-md text-xs font-bold border ${getBadgeColor(registro.estado)}`}>
+                              {registro.estado.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            {registro.evidenceUrl ? (
+                              <a href={registro.evidenceUrl} target="_blank" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1">
+                                <span>📷</span> Ver Foto
+                              </a>
+                            ) : (
+                              <span className="text-gray-600 italic">Manual</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
         </div>
       </div>
     </div>

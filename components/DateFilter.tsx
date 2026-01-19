@@ -1,23 +1,36 @@
 // components/DateFilter.tsx
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 export default function DateFilter() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   
-  // Obtenemos la fecha de la URL o usamos la de hoy
+  // Usamos el parámetro o la fecha local (formato YYYY-MM-DD)
+  // 'en-CA' es un truco para obtener siempre formato YYYY-MM-DD
+  const today = new Date().toLocaleDateString('en-CA');
   const dateParam = searchParams.get('date');
-  const today = new Date().toISOString().split('T')[0];
-  const [date, setDate] = useState(dateParam || today);
+  const date = dateParam || today;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newDate = e.target.value;
-    setDate(newDate);
-    // Actualizamos la URL para que el servidor recargue los datos
-    router.push(`/dashboard?date=${newDate}`);
+    
+    // Mantenemos otros parámetros si existieran
+    const params = new URLSearchParams(searchParams);
+    
+    if (newDate) {
+      params.set('date', newDate);
+    } else {
+      params.delete('date');
+    }
+
+    // 1. Cambiamos la URL (replace es más suave que push para filtros)
+    router.replace(`${pathname}?${params.toString()}`);
+    
+    // 2. 🛑 EL TRUCO MAGICO: Forzamos al servidor a recargar los datos
+    router.refresh();
   };
 
   return (
