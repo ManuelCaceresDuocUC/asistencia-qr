@@ -4,7 +4,8 @@
 import { useState } from 'react';
 import { registrarManual } from '@/app/actions';
 
-type EstadoAsistencia = 'A_BORDO' | 'EN_TIERRA' | 'PERMISO' | 'AUTORIZADO' | 'COMISION';
+// Asegúrate de que este tipo coincida con tu schema.prisma
+type EstadoAsistencia = 'A_BORDO' | 'EN_TIERRA' | 'PERMISO' | 'AUTORIZADO' | 'COMISION'| 'CATEGORIA';
 
 interface SimpleUser {
   id: string;
@@ -13,24 +14,26 @@ interface SimpleUser {
 
 export default function ManualEntry({ users }: { users: SimpleUser[] }) {
   const [selectedUser, setSelectedUser] = useState('');
+  // Valor por defecto
   const [selectedEstado, setSelectedEstado] = useState<EstadoAsistencia>('EN_TIERRA');
   const [description, setDescription] = useState('');
   
-  // NUEVOS ESTADOS PARA FECHAS
+  // ESTADOS PARA FECHAS
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
   const [loading, setLoading] = useState(false);
 
-  // Estados que habilitan el modo rango de fechas
-  const estadosDeRango = ['PERMISO', 'AUTORIZADO', 'COMISION'];
+  // 👇 Aquí definimos qué estados activan el calendario de rango
+  const estadosDeRango = ['PERMISO', 'AUTORIZADO', 'COMISION', 'CATEGORIA'];
+  
   const showDateRange = estadosDeRango.includes(selectedEstado);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return alert('Selecciona un usuario');
     
-    // Validaciones simples
+    // Validaciones de fechas
     if (showDateRange && (!startDate || !endDate)) {
       return alert('Debes seleccionar fecha de inicio y fin para este estado.');
     }
@@ -43,9 +46,11 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
     const formData = new FormData();
     formData.append('userId', selectedUser);
     formData.append('estado', selectedEstado);
+    
+    // Enviamos descripción si existe
     if (description) formData.append('description', description);
     
-    // Enviamos las fechas si aplica
+    // Enviamos las fechas si el estado es de rango
     if (showDateRange) {
       formData.append('startDate', startDate);
       formData.append('endDate', endDate);
@@ -57,9 +62,11 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
     setLoading(false);
     
     if (res.success) {
+      // Limpiar formulario
       setDescription('');
       setStartDate('');
       setEndDate('');
+      // Recargar para ver cambios
       window.location.reload(); 
     }
   };
@@ -96,11 +103,14 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
             <option value="PERMISO">PERMISO 🏠 (Rango)</option>
             <option value="AUTORIZADO">AUTORIZADO ✅ (Rango)</option>
             <option value="COMISION">COMISIÓN 📋 (Rango)</option>
+            
+            {/* 👇 Aquí actualicé el texto para que sea más claro */}
+            <option value="CATEGORIA">CATEGORÍA (Lic. Médica) 🏥</option>
           </select>
         </div>
       </div>
 
-      {/* SECCIÓN DE FECHAS (Solo visible si es Permiso, Comisión, etc) */}
+      {/* SECCIÓN DE FECHAS (Solo visible si es Permiso, Comisión, Licencia, etc) */}
       {showDateRange && (
         <div className="p-4 bg-gray-900/50 border border-gray-600 rounded-lg animate-in fade-in slide-in-from-top-2">
            <p className="text-xs text-blue-300 mb-2 font-bold">📅 Configurar Rango de Fechas</p>
@@ -136,7 +146,7 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
           </label>
           <textarea
             className="bg-gray-900 text-white p-2 rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
-            placeholder="Ej: Vacaciones legales, Comisión de servicio en Santiago..."
+            placeholder="Ej: Licencia médica por 3 días, Comisión de servicio..."
             rows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
