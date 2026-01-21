@@ -9,66 +9,29 @@ import { revalidatePath } from "next/cache";
 // ==============================================================================
 // 1. ACCIÓN QR (Se mantiene igual, lógica de foto y S3)
 // ==============================================================================
-export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
+export async function registrarAsistencia(userId: string) {
   try {
-    const user = await prisma.user.findUnique({
-      where: { qrCode: qrCode }
-    });
+    // 1. Validar que el usuario exista
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return { success: false, message: 'Usuario no encontrado ❌' };
 
-    if (!user) return { success: false, message: "Usuario no encontrado ❌" };
-
-    // Rango de fechas: HOY
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const ultimoRegistroHoy = await prisma.assistance.findFirst({
-      where: { 
-        userId: user.id,
-        timestamp: {
-          gte: startOfDay 
-        }
-      },
-      orderBy: { timestamp: 'desc' }
-    });
-
-    if (ultimoRegistroHoy?.estado === 'A_BORDO') {
-      return { 
-        success: false, 
-        message: `⚠️ ${user.nombre} ya marcó entrada HOY.` 
-      };
-    }
-
-    // Subida a S3
-    const buffer = Buffer.from(fotoBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
-    const fileName = `${user.qrCode}_${Date.now()}.jpg`;
-
-    const command = new PutObjectCommand({
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: fileName,
-      Body: buffer,
-      ContentType: "image/jpeg",
-    });
-
-    await s3Client.send(command);
-
-    const photoUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-
-    // Crear registro
+    // 2. Crear el registro DIRECTAMENTE (Sin subir fotos)
     await prisma.assistance.create({
       data: {
         userId: user.id,
-        evidenceUrl: photoUrl,
-        estado: 'A_BORDO',
-        description: null 
+        estado: 'A_BORDO', // O el estado por defecto que uses
+        timestamp: new Date(),
+        evidenceUrl: null, // Ya no hay foto
+        description: 'Ingreso vía QR Rápido' 
       }
     });
 
-    revalidatePath('/dashboard'); 
-    return { success: true, message: `¡Bienvenido a bordo, ${user.nombre}! 🚢` };
+    revalidatePath('/dashboard');
+    return { success: true, message: `✅ Registro exitoso: ${user.nombre}` };
 
-  } catch (error) { 
-    console.error("Error en registrarAsistencia:", error);
-    return { success: false, message: "Error interno al registrar" };
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: 'Error al registrar.' };
   }
 }
 
@@ -182,5 +145,36 @@ export async function registrarManual(formData: FormData) {
   } catch (error) {
     console.error("Error en registrarManual:", error);
     return { success: false, message: "Error al guardar manual" };
+  }
+}
+
+// 3. ACCIÓN PARA LIMPIAR EL DÍA (DELETE)
+export async function limpiarRegistrosDia(fechaStr: string) {
+  try {
+    // Definimos el mismo rango de horario que usas en el Dashboard
+    // Inicio: 04:00 AM UTC (aprox 00:00 Chile)
+    const startOfDay = new Date(`${fechaStr}T04:00:00.000Z`);
+    
+    // Fin: 04:00 AM UTC del día siguiente
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    endOfDay.setMilliseconds(-1);
+
+    // Borramos TODOS los registros dentro de ese rango
+    const deleted = await prisma.assistance.deleteMany({
+      where: {
+        timestamp: {
+          gte: startOfDay,
+          lte: endOfDay
+        }
+      }
+    });
+
+    revalidatePath('/dashboard');
+    return { success: true, message: `🗑️ Se eliminaron ${deleted.count} registros del día ${fechaStr}.` };
+
+  } catch (error) {
+    console.error("Error al limpiar:", error);
+    return { success: false, message: "Error al intentar borrar los registros." };
   }
 }

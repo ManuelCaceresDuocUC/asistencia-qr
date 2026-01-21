@@ -3,6 +3,7 @@ import Link from "next/link";
 import ManualEntry from "@/components/ManualEntry"; 
 import DateFilter from "@/components/DateFilter";
 import { unstable_noStore as noStore } from 'next/cache';
+import ClearButton from "@/components/ClearButton"; 
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -51,7 +52,7 @@ export default async function DashboardPage(props: Props) {
     }
   });
 
-  // Variables para contadores (Agregamos 'categoria')
+  // Variables para contadores
   let aBordo = 0, enTierra = 0, permiso = 0, autorizado = 0, comision = 0, categoria = 0;
   
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
@@ -66,7 +67,7 @@ export default async function DashboardPage(props: Props) {
       else if (estado === 'PERMISO') permiso++;
       else if (estado === 'AUTORIZADO') autorizado++;
       else if (estado === 'COMISION') comision++;
-      else if (estado === 'CATEGORIA') categoria++; // <--- Aquí contamos CATEGORIA
+      else if (estado === 'CATEGORIA') categoria++;
     }
   });
   const sinMarcar = sinRegistroIds.size;
@@ -79,7 +80,6 @@ export default async function DashboardPage(props: Props) {
       case 'PERMISO': return 'bg-purple-900 text-purple-300 border-purple-700';
       case 'AUTORIZADO': return 'bg-blue-900 text-blue-300 border-blue-700';
       case 'COMISION': return 'bg-cyan-900 text-cyan-300 border-cyan-700';
-      // Le damos un color Rojo/Rosado fuerte para destacar
       case 'CATEGORIA': return 'bg-rose-900 text-rose-300 border-rose-700'; 
       default: return 'bg-gray-700 text-gray-300';
     }
@@ -95,6 +95,7 @@ export default async function DashboardPage(props: Props) {
           </h1>
           <div className="flex items-center gap-4">
             <DateFilter />
+            <ClearButton dateStr={selectedDateStr} count={asistenciasDelDia.length} />
             <Link href="/scan" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition">
               Escanear QR 📷
             </Link>
@@ -125,7 +126,6 @@ export default async function DashboardPage(props: Props) {
             <p className="text-2xl font-bold text-white">{comision}</p>
           </div>
           
-          {/* 👇 TARJETA CATEGORÍA (Licencia Médica) */}
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-rose-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">Categoría</p>
             <p className="text-2xl font-bold text-white">{categoria}</p>
@@ -181,12 +181,18 @@ export default async function DashboardPage(props: Props) {
                       
                       <td className="p-4 align-top">
                         <div className="flex flex-col gap-1">
+                          
+                          {/* 👇 LÓGICA ACTUALIZADA PARA LA FOTO */}
                           {registro.evidenceUrl ? (
+                            // Si es un registro ANTIGUO con foto, mostramos el link
                             <a href={registro.evidenceUrl} target="_blank" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 w-fit">
                               <span>📷</span> <span className="text-xs">Ver Foto</span>
                             </a>
                           ) : (
-                            <span className="text-gray-500 text-xs italic">Ingreso Manual</span>
+                            // Si es NUEVO (QR rápido) o Manual
+                            <span className="text-green-500/60 text-xs italic flex items-center gap-1 font-mono">
+                              ⚡ Sin foto adjunta
+                            </span>
                           )}
 
                           {registro.description && (

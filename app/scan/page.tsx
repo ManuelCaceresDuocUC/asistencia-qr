@@ -1,9 +1,9 @@
-// app/scan/page.tsx
 'use client'
 
-import { useState, useRef } from 'react'; // Agregamos useRef
+import { useState, useRef } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import Link from 'next/link';
+// Asegúrate de que tu server action ya no espere la foto (ver paso 2)
 import { registrarAsistencia } from '../actions';
 
 interface IScannerData {
@@ -16,44 +16,27 @@ export default function ScanPage() {
   const [procesando, setProcesando] = useState(false);
   const [colorEstado, setColorEstado] = useState('text-yellow-400');
 
-  // 🛡️ MEMORIA INSTANTÁNEA (Evita el efecto ametralladora)
+  // 🛡️ MEMORIA INSTANTÁNEA
   const ultimoCodigoLeido = useRef<string | null>(null);
 
   const handleScan = async (result: IScannerData[]) => {
-    // Si no hay datos, salimos
     if (!result || result.length === 0) return;
 
     const codigoLeido = result[0].rawValue;
 
-    // 🛑 BLOQUEO MAESTRO 🛑
-    // 1. Si el estado visual dice "procesando"... ALTO.
-    // 2. Si el código que ve la cámara es IDÉNTICO al que leímos hace 1 segundo... ALTO.
+    // 🛑 BLOQUEO MAESTRO (Evita lecturas repetidas muy seguidas)
     if (procesando || codigoLeido === ultimoCodigoLeido.current) return;
 
-    // ✅ PASÓ EL FILTRO: Iniciamos proceso
-    ultimoCodigoLeido.current = codigoLeido; // Guardamos en memoria inmediata
+    // ✅ PASÓ EL FILTRO
+    ultimoCodigoLeido.current = codigoLeido;
     setProcesando(true);
-    setMensaje('📸 Procesando...');
+    setMensaje('🚀 Registrando...');
     setColorEstado('text-blue-400');
 
     try {
-      // 1. CAPTURAR FOTO DEL VIDEO
-      const videoElement = document.querySelector('video');
-      let fotoBase64 = '';
-
-      if (videoElement) {
-        const canvas = document.createElement("canvas");
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            fotoBase64 = canvas.toDataURL("image/jpeg", 0.7);
-        }
-      }
-
-      // 2. ENVIAR AL SERVIDOR
-      const respuesta = await registrarAsistencia(codigoLeido, fotoBase64);
+      // 👇 AQUÍ ESTÁ EL CAMBIO: Ya no capturamos foto, solo enviamos el ID.
+      // Si tu función en actions.ts aún pide 2 argumentos, cámbiala o pasa null aquí.
+      const respuesta = await registrarAsistencia(codigoLeido);
 
       if (respuesta.success) {
         setMensaje(respuesta.message || 'Éxito');
@@ -69,14 +52,14 @@ export default function ScanPage() {
       setColorEstado('text-red-500');
     }
 
-    // 3. ENFRIAMIENTO (Cool-down)
-    // Esperamos 3 segundos antes de permitir leer CUALQUIER código de nuevo.
+    // 3. ENFRIAMIENTO RÁPIDO
+    // Al no subir fotos, podemos reducir el tiempo de espera a 2 segundos
     setTimeout(() => {
       setProcesando(false);
-      ultimoCodigoLeido.current = null; // Borramos la memoria para permitir leer al mismo usuario si vuelve a pasar
+      ultimoCodigoLeido.current = null; 
       setMensaje('Esperando siguiente...');
       setColorEstado('text-yellow-400');
-    }, 3000);
+    }, 2000);
   };
 
   return (
@@ -89,14 +72,15 @@ export default function ScanPage() {
         <Scanner 
             onScan={handleScan}
             allowMultiple={true} 
-            scanDelay={500} // Revisamos cada 500ms, pero nuestro filtro useRef bloquea lo repetido
-            constraints={{ facingMode: 'enviroment' }} // 'user' es cámara frontal (selfie), 'environment' es trasera
+            scanDelay={500} 
+            // Corregí el typo: es 'environment' (con n antes de la m)
+            constraints={{ facingMode: 'environment' }} 
         />
         
-        {/* Capa oscura cuando está ocupado */}
+        {/* Capa oscura más ligera */}
         {procesando && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
-                <div className="text-4xl animate-spin mb-4">⏳</div>
+            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-50 backdrop-blur-sm">
+                <div className="text-5xl animate-bounce mb-4">⚡</div>
                 <span className="text-white text-xl font-bold">Guardando...</span>
             </div>
         )}
@@ -109,8 +93,8 @@ export default function ScanPage() {
         </p>
       </div>
 
-      <Link href="/" className="mt-8 text-gray-500 hover:text-white transition underline">
-        ← Volver
+      <Link href="/dashboard" className="mt-8 text-gray-500 hover:text-white transition underline">
+        ← Volver al Dashboard
       </Link>
     </div>
   );
