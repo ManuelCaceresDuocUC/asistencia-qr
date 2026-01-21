@@ -7,44 +7,32 @@ import { unstable_noStore as noStore } from 'next/cache';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// 1. DEFINICIÓN DE TIPOS PARA NEXT.JS 15/16
-// searchParams ahora es una PROMESA
 interface Props {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export default async function DashboardPage(props: Props) {
-  
-  // 2. ☢️ ANULAR CACHÉ
   noStore();
 
-  // 3. 🛑 ESPERAR LOS PARÁMETROS (EL CAMBIO CLAVE)
-  // Tenemos que poner 'await' antes de usar props.searchParams
+  // --- 1. PROCESAMIENTO DE PARÁMETROS (NEXT.JS 16) ---
   const searchParams = await props.searchParams;
-  
   const dateFromUrl = typeof searchParams.date === 'string' ? searchParams.date : undefined;
 
-  // LOG DE DEPURACIÓN (Ahora sí mostrará los datos reales)
   console.log("========================================");
-  console.log("📥 URL Params (Ya procesados):", searchParams);
-  console.log("📅 Fecha extraída:", dateFromUrl);
+  console.log("📥 URL Params:", searchParams);
 
-  // 4. CALCULAR FECHA CHILE
+  // --- 2. CÁLCULO DE FECHAS ---
   const chileTime = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
-  
-  // Si dateFromUrl existe, lo usamos. Si no, usamos chileTime.
   const selectedDateStr = dateFromUrl || chileTime;
   
-  console.log("🎯 Fecha final usada para filtro:", selectedDateStr);
-  console.log("========================================");
+  console.log("🎯 Fecha filtro:", selectedDateStr);
 
-  // 5. RANGO DE FECHAS (04:00 UTC a 04:00 UTC del día siguiente)
   const startOfDay = new Date(`${selectedDateStr}T04:00:00.000Z`);
   const endOfDay = new Date(startOfDay);
   endOfDay.setDate(endOfDay.getDate() + 1);
   endOfDay.setMilliseconds(-1); 
 
-  // 6. CONSULTA BASE DE DATOS
+  // --- 3. CONSULTAS DB ---
   const allUsers = await prisma.user.findMany({
     orderBy: { nombre: 'asc' }
   });
@@ -60,7 +48,7 @@ export default async function DashboardPage(props: Props) {
     include: { user: true },
   });
 
-  // --- LÓGICA DE CONTADORES (IGUAL QUE ANTES) ---
+  // --- 4. LÓGICA DE CONTADORES (Actualizada con COMISIÓN) ---
   const estadoActualPorUsuario = new Map();
   asistenciasDelDia.forEach((registro) => {
     if (!estadoActualPorUsuario.has(registro.userId)) {
@@ -68,34 +56,40 @@ export default async function DashboardPage(props: Props) {
     }
   });
 
-  let aBordo = 0, enTierra = 0, permiso = 0, autorizado = 0;
+  // Variables para contadores
+  let aBordo = 0, enTierra = 0, permiso = 0, autorizado = 0, comision = 0;
+  
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
 
   allUsers.forEach(user => {
     if (estadoActualPorUsuario.has(user.id)) {
       sinRegistroIds.delete(user.id);
       const estado = estadoActualPorUsuario.get(user.id);
+      
       if (estado === 'A_BORDO') aBordo++;
       else if (estado === 'EN_TIERRA') enTierra++;
       else if (estado === 'PERMISO') permiso++;
       else if (estado === 'AUTORIZADO') autorizado++;
+      else if (estado === 'COMISION') comision++; // <--- Nuevo contador
     }
   });
   const sinMarcar = sinRegistroIds.size;
 
+  // --- 5. COLORES DE ESTADOS (Actualizado) ---
   const getBadgeColor = (estado: string) => {
     switch (estado) {
       case 'A_BORDO': return 'bg-green-900 text-green-300 border-green-700';
       case 'EN_TIERRA': return 'bg-yellow-900 text-yellow-300 border-yellow-700';
       case 'PERMISO': return 'bg-purple-900 text-purple-300 border-purple-700';
       case 'AUTORIZADO': return 'bg-blue-900 text-blue-300 border-blue-700';
+      case 'COMISION': return 'bg-cyan-900 text-cyan-300 border-cyan-700'; // <--- Nuevo color
       default: return 'bg-gray-700 text-gray-300';
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6"> {/* Aumenté max-w para que quepan las tarjetas */}
         
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-yellow-500">
@@ -109,8 +103,8 @@ export default async function DashboardPage(props: Props) {
           </div>
         </div>
 
-        {/* Key Random para forzar actualización visual */}
-        <div key={selectedDateStr + Math.random()} className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* --- TARJETAS DE RESUMEN (Ahora son 6 columnas en pantallas grandes) --- */}
+        <div key={selectedDateStr + Math.random()} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-green-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
             <p className="text-2xl font-bold text-white">{aBordo}</p>
@@ -126,6 +120,11 @@ export default async function DashboardPage(props: Props) {
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-blue-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">Autorizado</p>
             <p className="text-2xl font-bold text-white">{autorizado}</p>
+          </div>
+          {/* Tarjeta de COMISIÓN */}
+          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-cyan-500 shadow-lg">
+            <p className="text-gray-400 text-xs uppercase font-bold">Comisión</p>
+            <p className="text-2xl font-bold text-white">{comision}</p>
           </div>
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-red-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">Sin Marcar</p>
@@ -147,7 +146,7 @@ export default async function DashboardPage(props: Props) {
                   <th className="p-4">Hora</th>
                   <th className="p-4">Nombre</th>
                   <th className="p-4">Estado</th>
-                  <th className="p-4">Evidencia</th>
+                  <th className="p-4">Detalle / Evidencia</th> {/* Cambié el nombre de la columna */}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700 text-sm">
@@ -155,35 +154,49 @@ export default async function DashboardPage(props: Props) {
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-gray-500 italic">
                       No hay registros para la fecha <span className="font-bold text-white">{selectedDateStr}</span>.
-                      <br/>
-                      <span className="text-xs text-gray-600">Revisando entre: {startOfDay.toISOString()} y {endOfDay.toISOString()}</span>
                     </td>
                   </tr>
                 ) : (
                   asistenciasDelDia.map((registro) => (
                     <tr key={registro.id} className="hover:bg-gray-700/50 transition">
-                      <td className="p-4 text-gray-300 font-mono">
+                      <td className="p-4 text-gray-300 font-mono align-top">
                           {new Date(registro.timestamp).toLocaleTimeString('es-CL', {
                             hour: '2-digit', 
                             minute:'2-digit',
                             timeZone: 'America/Santiago' 
                           })}
                       </td>
-                      <td className="p-4 font-bold text-white">{registro.user.nombre}</td>
-                      <td className="p-4">
+                      <td className="p-4 font-bold text-white align-top">{registro.user.nombre}</td>
+                      <td className="p-4 align-top">
                         <span className={`px-2 py-1 rounded-md text-xs font-bold border ${getBadgeColor(registro.estado)}`}>
                           {registro.estado.replace('_', ' ')}
                         </span>
                       </td>
-                      <td className="p-4">
-                        {registro.evidenceUrl ? (
-                          <a href={registro.evidenceUrl} target="_blank" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1">
-                            <span>📷</span> Ver Foto
-                          </a>
-                        ) : (
-                          <span className="text-gray-600 italic">Manual</span>
-                        )}
+                      
+                      {/* 👇 AQUÍ ESTÁ LA MAGIA DE LA DESCRIPCIÓN */}
+                      <td className="p-4 align-top">
+                        <div className="flex flex-col gap-1">
+                          {/* FOTO O MANUAL */}
+                          {registro.evidenceUrl ? (
+                            <a href={registro.evidenceUrl} target="_blank" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 w-fit">
+                              <span>📷</span> <span className="text-xs">Ver Foto</span>
+                            </a>
+                          ) : (
+                            <span className="text-gray-500 text-xs italic">Ingreso Manual</span>
+                          )}
+
+                          {/* DESCRIPCIÓN (Solo si existe) */}
+                          {registro.description && (
+                            <div className="flex items-start gap-1 mt-1 bg-gray-900/50 p-2 rounded border border-gray-700 max-w-xs">
+                              <span className="text-lg leading-none">📝</span>
+                              <span className="text-yellow-100 text-xs italic break-words">
+                                {registro.description}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </td>
+
                     </tr>
                   ))
                 )}

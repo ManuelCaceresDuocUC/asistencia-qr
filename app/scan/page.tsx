@@ -90,7 +90,7 @@ export default function ScanPage() {
             onScan={handleScan}
             allowMultiple={true} 
             scanDelay={500} // Revisamos cada 500ms, pero nuestro filtro useRef bloquea lo repetido
-            constraints={{ facingMode: 'user' }} // 'user' es cámara frontal (selfie), 'environment' es trasera
+            constraints={{ facingMode: 'enviroment' }} // 'user' es cámara frontal (selfie), 'environment' es trasera
         />
         
         {/* Capa oscura cuando está ocupado */}

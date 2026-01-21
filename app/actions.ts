@@ -6,7 +6,9 @@ import { s3Client } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { revalidatePath } from "next/cache";
 
-// 1. Acción del QR (Corregida: Solo valida el día actual)
+// ==============================================================================
+// 1. ACCIÓN QR (Se mantiene igual, la descripción queda nula o vacía)
+// ==============================================================================
 export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
   try {
     const user = await prisma.user.findUnique({
@@ -15,34 +17,27 @@ export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
 
     if (!user) return { success: false, message: "Usuario no encontrado ❌" };
 
-    // ============================================================
-    // 🛑 VALIDACIÓN CORREGIDA: Solo mirar HOY
-    // ============================================================
-    
-    // 1. Calculamos el inicio del día actual (00:00:00)
+    // Rango de fechas: HOY (00:00 a 23:59 del servidor)
+    // Nota: Si el servidor no está en hora chilena, esto podría variar.
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    // 2. Buscamos el último registro PERO solo de hoy
     const ultimoRegistroHoy = await prisma.assistance.findFirst({
       where: { 
         userId: user.id,
         timestamp: {
-          gte: startOfDay // "Mayor o igual a hoy a las 00:00"
+          gte: startOfDay 
         }
       },
       orderBy: { timestamp: 'desc' }
     });
 
-    // 3. Validamos sobre el registro de HOY. 
-    // Si no hay registro hoy (es null), pasa directo (nuevo día).
     if (ultimoRegistroHoy?.estado === 'A_BORDO') {
       return { 
         success: false, 
         message: `⚠️ ${user.nombre} ya marcó entrada HOY.` 
       };
     }
-    // ============================================================
 
     const buffer = Buffer.from(fotoBase64.replace(/^data:image\/\w+;base64,/, ""), "base64");
     const fileName = `${user.qrCode}_${Date.now()}.jpg`;
@@ -62,7 +57,8 @@ export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
       data: {
         userId: user.id,
         evidenceUrl: photoUrl,
-        estado: 'A_BORDO' 
+        estado: 'A_BORDO',
+        description: null // QR no lleva descripción manual
       }
     });
 
@@ -75,20 +71,35 @@ export async function registrarAsistencia(qrCode: string, fotoBase64: string) {
   }
 }
 
-// 2. Acción Manual (CORRIGE el registro existente de hoy)
-export async function registrarManual(userId: string, nuevoEstado: 'A_BORDO' | 'EN_TIERRA' | 'PERMISO' | 'AUTORIZADO') {
+// ==============================================================================
+// 2. ACCIÓN MANUAL (ACTUALIZADA para recibir FormData y Descripción)
+// ==============================================================================
+export async function registrarManual(formData: FormData) {
   try {
+    // 1. Extraer datos del formulario
+    const userId = formData.get('userId') as string;
+    const rawEstado = formData.get('estado') as string;
+    // Capturamos la descripción (puede venir vacía)
+    const descriptionRaw = formData.get('description') as string | null;
+    
+    // Limpiamos la descripción: si es string vacío, lo pasamos a null
+    const description = descriptionRaw && descriptionRaw.trim() !== '' ? descriptionRaw : null;
+
+    // Casteamos el estado para que TypeScript no se queje
+    // Asegúrate de haber agregado 'COMISION' en tu schema.prisma enum
+    const nuevoEstado = rawEstado as 'A_BORDO' | 'EN_TIERRA' | 'PERMISO' | 'AUTORIZADO' | 'COMISION';
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return { success: false, message: "Usuario no encontrado" };
 
-    // Definimos el rango de "HOY" para no editar registros de ayer por error
+    // 2. Definimos rango de HOY
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    // Buscamos si ya tiene un registro HOY
+    // 3. Buscamos registro existente
     const registroHoy = await prisma.assistance.findFirst({
       where: { 
         userId: userId,
@@ -97,34 +108,35 @@ export async function registrarManual(userId: string, nuevoEstado: 'A_BORDO' | '
           lte: todayEnd
         }
       },
-      orderBy: { timestamp: 'desc' } // Tomamos el último de hoy
+      orderBy: { timestamp: 'desc' }
     });
 
     if (registroHoy) {
-      // CASO A: ACTUALIZAR (Ya existe registro hoy)
-      // Solo cambiamos el estado. La evidencia (foto) y la hora se mantienen.
+      // CASO A: ACTUALIZAR (Ya existe)
       await prisma.assistance.update({
         where: { id: registroHoy.id },
         data: { 
-          estado: nuevoEstado 
+          estado: nuevoEstado,
+          description: description // <--- Actualizamos la descripción
         }
       });
       
       revalidatePath('/dashboard');
-      return { success: true, message: `✅ Registro corregido: ${user.nombre} ahora está ${nuevoEstado.replace('_', ' ')}` };
+      return { success: true, message: `✅ Registro corregido: ${user.nombre} -> ${nuevoEstado}` };
 
     } else {
-      // CASO B: CREAR (No ha marcado nada hoy)
+      // CASO B: CREAR (Nuevo)
       await prisma.assistance.create({
         data: {
           userId: userId,
           estado: nuevoEstado,
-          evidenceUrl: null // Manual puro, sin foto
+          evidenceUrl: null, // Sin foto
+          description: description // <--- Guardamos la descripción
         }
       });
 
       revalidatePath('/dashboard');
-      return { success: true, message: `✅ Nuevo registro manual: ${user.nombre}` };
+      return { success: true, message: `✅ Nuevo registro: ${user.nombre} (${nuevoEstado})` };
     }
 
   } catch (error) {

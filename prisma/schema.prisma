@@ -14,6 +14,8 @@ enum EstadoAsistencia {
   EN_TIERRA
   PERMISO
   AUTORIZADO
+  COMISION 
+  CATEGORIA
 }
 
 model User {
@@ -33,4 +35,5 @@ model Assistance {
   
   userId        String
   user          User     @relation(fields: [userId], references: [id])
+  description   String?
 }
