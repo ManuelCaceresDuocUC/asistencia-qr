@@ -10,31 +10,40 @@ import { revalidatePath } from "next/cache";
 // 1. ACCIÓN QR (Se mantiene igual, lógica de foto y S3)
 // ==============================================================================
 export async function registrarAsistencia(userId: string) {
-  try {
-    // 1. Validar que el usuario exista
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return { success: false, message: 'Usuario no encontrado ❌' };
+  // 👇 1. DEBUG: Mira tu terminal de VS Code cuando escanees
+  console.log("🔍 SERVER RECIBIÓ ID:", `"${userId}"`); 
 
-    // 2. Crear el registro DIRECTAMENTE (Sin subir fotos)
+  try {
+    if (!userId) return { success: false, message: 'Código QR vacío ❌' };
+
+    // Buscamos el usuario
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    
+    // 👇 2. Si falla aquí, mira el console.log de arriba. 
+    // ¿El ID coincide EXACTAMENTE con lo que tienes en tu base de datos?
+    if (!user) {
+        console.log("❌ Usuario NO encontrado en DB.");
+        return { success: false, message: `Usuario no encontrado (ID: ${userId})` };
+    }
+
     await prisma.assistance.create({
       data: {
         userId: user.id,
-        estado: 'A_BORDO', // O el estado por defecto que uses
+        estado: 'A_BORDO',
         timestamp: new Date(),
-        evidenceUrl: null, // Ya no hay foto
-        description: 'Ingreso vía QR Rápido' 
+        evidenceUrl: null,
+        description: 'Escaneo QR Rápido ⚡'
       }
     });
 
     revalidatePath('/dashboard');
-    return { success: true, message: `✅ Registro exitoso: ${user.nombre}` };
+    return { success: true, message: `✅ ${user.nombre} A Bordo` };
 
   } catch (error) {
-    console.error(error);
-    return { success: false, message: 'Error al registrar.' };
+    console.error("Error SERVER:", error);
+    return { success: false, message: 'Error interno del servidor' };
   }
 }
-
 // ==============================================================================
 // 2. ACCIÓN MANUAL (Soporta Rangos de Fechas y Descripción)
 // ==============================================================================
