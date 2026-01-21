@@ -10,19 +10,15 @@ import { revalidatePath } from "next/cache";
 // 1. ACCIÓN QR (Se mantiene igual, lógica de foto y S3)
 // ==============================================================================
 export async function registrarAsistencia(codigoLeido: string) {
-  // 1. Limpiamos espacios por seguridad
+  // 1. Limpiamos espacios
   const qrLimpio = codigoLeido.trim();
   
-  console.log("🔍 BUSCANDO EN DB EL QR:", `"${qrLimpio}"`); 
+  console.log("🔍 BUSCANDO QR:", `"${qrLimpio}"`); 
 
   try {
     if (!qrLimpio) return { success: false, message: 'Código QR vacío ❌' };
 
-    // ==========================================================
-    // 👇 AQUÍ ESTÁ LA MAGIA
-    // Buscamos en la columna 'qrCode' (donde tienes "610023-3")
-    // en lugar de 'id' (donde hay códigos largos ocultos).
-    // ==========================================================
+    // 2. Buscamos el usuario por su QR
     const user = await prisma.user.findUnique({ 
         where: { qrCode: qrLimpio } 
     });
@@ -32,19 +28,58 @@ export async function registrarAsistencia(codigoLeido: string) {
         return { success: false, message: `QR no registrado: ${qrLimpio}` };
     }
 
-    // 2. Registrar asistencia
-    await prisma.assistance.create({
-      data: {
-        userId: user.id, // Usamos el ID interno para relacionar
-        estado: 'A_BORDO',
-        timestamp: new Date(),
-        evidenceUrl: null, // Sin foto
-        description: 'Escaneo QR Rápido ⚡'
-      }
+    // ==========================================================
+    // 🛑 VALIDACIÓN ANTI-DUPLICADOS
+    // ==========================================================
+    
+    // Definimos el rango de "HOY" (00:00 a 23:59 del servidor)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Buscamos si ESTE usuario ya tiene CUALQUIER registro hoy
+    const registroExistente = await prisma.assistance.findFirst({
+        where: {
+            userId: user.id,
+            timestamp: {
+                gte: startOfDay,
+                lte: endOfDay
+            }
+        }
     });
 
-    revalidatePath('/dashboard');
-    return { success: true, message: `✅ ${user.nombre} A Bordo` };
+    if (registroExistente) {
+        // --- CASO A: YA EXISTE -> ACTUALIZAMOS ---
+        // Si ya estaba ingresado (manual o QR previo), solo actualizamos su estado y hora.
+        await prisma.assistance.update({
+            where: { id: registroExistente.id },
+            data: {
+                estado: 'A_BORDO',           // Forzamos "A Bordo" porque acaba de escanear
+                timestamp: new Date(),       // Actualizamos la hora a la actual
+                description: 'Escaneo QR Rápido ⚡ (Actualizado)' // Opcional: dejamos rastro
+            }
+        });
+
+        revalidatePath('/dashboard');
+        return { success: true, message: `🔄 ${user.nombre} actualizado a: A BORDO` };
+
+    } else {
+        // --- CASO B: NO EXISTE -> CREAMOS ---
+        await prisma.assistance.create({
+            data: {
+                userId: user.id,
+                estado: 'A_BORDO',
+                timestamp: new Date(),
+                evidenceUrl: null,
+                description: 'Escaneo QR Rápido ⚡'
+            }
+        });
+
+        revalidatePath('/dashboard');
+        return { success: true, message: `✅ ${user.nombre} A Bordo` };
+    }
 
   } catch (error) {
     console.error("Error SERVER:", error);
