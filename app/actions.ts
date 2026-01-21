@@ -9,29 +9,36 @@ import { revalidatePath } from "next/cache";
 // ==============================================================================
 // 1. ACCIÓN QR (Se mantiene igual, lógica de foto y S3)
 // ==============================================================================
-export async function registrarAsistencia(userId: string) {
-  // 👇 1. DEBUG: Mira tu terminal de VS Code cuando escanees
-  console.log("🔍 SERVER RECIBIÓ ID:", `"${userId}"`); 
+export async function registrarAsistencia(codigoLeido: string) {
+  // 1. Limpiamos espacios por seguridad
+  const qrLimpio = codigoLeido.trim();
+  
+  console.log("🔍 BUSCANDO EN DB EL QR:", `"${qrLimpio}"`); 
 
   try {
-    if (!userId) return { success: false, message: 'Código QR vacío ❌' };
+    if (!qrLimpio) return { success: false, message: 'Código QR vacío ❌' };
 
-    // Buscamos el usuario
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    // ==========================================================
+    // 👇 AQUÍ ESTÁ LA MAGIA
+    // Buscamos en la columna 'qrCode' (donde tienes "610023-3")
+    // en lugar de 'id' (donde hay códigos largos ocultos).
+    // ==========================================================
+    const user = await prisma.user.findUnique({ 
+        where: { qrCode: qrLimpio } 
+    });
     
-    // 👇 2. Si falla aquí, mira el console.log de arriba. 
-    // ¿El ID coincide EXACTAMENTE con lo que tienes en tu base de datos?
     if (!user) {
-        console.log("❌ Usuario NO encontrado en DB.");
-        return { success: false, message: `Usuario no encontrado (ID: ${userId})` };
+        console.log(`❌ No existe usuario con qrCode: ${qrLimpio}`);
+        return { success: false, message: `QR no registrado: ${qrLimpio}` };
     }
 
+    // 2. Registrar asistencia
     await prisma.assistance.create({
       data: {
-        userId: user.id,
+        userId: user.id, // Usamos el ID interno para relacionar
         estado: 'A_BORDO',
         timestamp: new Date(),
-        evidenceUrl: null,
+        evidenceUrl: null, // Sin foto
         description: 'Escaneo QR Rápido ⚡'
       }
     });
