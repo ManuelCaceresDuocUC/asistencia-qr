@@ -1,11 +1,10 @@
-// prisma/seed.ts
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
 async function main() {
 
-  // Lista de personal (Sin email, como pediste)
+  // Lista de personal
   const personal = [
     { nombre: "Sepulveda", qrCode: "663898-8" },
     { nombre: "Vallejos", qrCode: "585709-5" },
@@ -48,19 +47,21 @@ async function main() {
     { nombre: "Guerra", qrCode: "SGuerra"}
   ];
 
-  console.log('🌱 Comenzando la carga de datos...')
+  console.log('🌱 Comenzando la carga/actualización de datos...')
 
   for (const persona of personal) {
     const usuario = await prisma.user.upsert({
-      where: { qrCode: persona.qrCode }, // Busca por QR
-      update: {}, // Si existe, no hace nada
-      create: {   // Si no existe, lo crea
+      where: { qrCode: persona.qrCode }, 
+      // 👇 IMPORTANTE: Esto actualiza el nombre si el QR ya existe
+      update: {
+        nombre: persona.nombre 
+      }, 
+      create: { 
         nombre: persona.nombre,
         qrCode: persona.qrCode
-        // Ya no enviamos email aquí
       }
     })
-    console.log(`✅ Usuario verificado: ${usuario.nombre} (QR: ${usuario.qrCode})`)
+    console.log(`✅ Usuario procesado: ${usuario.nombre} (QR: ${usuario.qrCode})`)
   }
 
   console.log('🏁 Carga finalizada.')
