@@ -53,7 +53,7 @@ export default async function DashboardPage(props: Props) {
   });
 
   // Variables para contadores
-  let aBordo = 0, enTierra = 0, permiso = 0, autorizado = 0, comision = 0, categoria = 0;
+  let aBordo = 0, enTierra = 0, permiso = 0, comision = 0, categoria = 0;
   
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
 
@@ -65,7 +65,6 @@ export default async function DashboardPage(props: Props) {
       if (estado === 'A_BORDO') aBordo++;
       else if (estado === 'EN_TIERRA') enTierra++;
       else if (estado === 'PERMISO') permiso++;
-      else if (estado === 'AUTORIZADO') autorizado++;
       else if (estado === 'COMISION') comision++;
       else if (estado === 'CATEGORIA') categoria++;
     }
@@ -78,7 +77,6 @@ export default async function DashboardPage(props: Props) {
       case 'A_BORDO': return 'bg-green-900 text-green-300 border-green-700';
       case 'EN_TIERRA': return 'bg-yellow-900 text-yellow-300 border-yellow-700';
       case 'PERMISO': return 'bg-purple-900 text-purple-300 border-purple-700';
-      case 'AUTORIZADO': return 'bg-blue-900 text-blue-300 border-blue-700';
       case 'COMISION': return 'bg-cyan-900 text-cyan-300 border-cyan-700';
       case 'CATEGORIA': return 'bg-rose-900 text-rose-300 border-rose-700'; 
       default: return 'bg-gray-700 text-gray-300';
@@ -117,10 +115,7 @@ export default async function DashboardPage(props: Props) {
             <p className="text-gray-400 text-xs uppercase font-bold">Permiso</p>
             <p className="text-2xl font-bold text-white">{permiso}</p>
           </div>
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-blue-500 shadow-lg">
-            <p className="text-gray-400 text-xs uppercase font-bold">Autorizado</p>
-            <p className="text-2xl font-bold text-white">{autorizado}</p>
-          </div>
+          
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-cyan-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">Comisión</p>
             <p className="text-2xl font-bold text-white">{comision}</p>

@@ -25,7 +25,7 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
   const [loading, setLoading] = useState(false);
 
   // 👇 Aquí definimos qué estados activan el calendario de rango
-  const estadosDeRango = ['PERMISO', 'AUTORIZADO', 'COMISION', 'CATEGORIA'];
+  const estadosDeRango = ['CATEGORIA'];
   
   const showDateRange = estadosDeRango.includes(selectedEstado);
 
@@ -98,14 +98,11 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
             value={selectedEstado}
             onChange={(e) => setSelectedEstado(e.target.value as EstadoAsistencia)}
           >
-            <option value="A_BORDO">A BORDO 🚢</option>
-            <option value="EN_TIERRA">EN TIERRA 🌍</option>
-            <option value="PERMISO">PERMISO 🏠 (Rango)</option>
-            <option value="AUTORIZADO">AUTORIZADO ✅ (Rango)</option>
-            <option value="COMISION">COMISIÓN 📋 (Rango)</option>
-            
-            {/* 👇 Aquí actualicé el texto para que sea más claro */}
-            <option value="CATEGORIA">CATEGORÍA (Lic. Médica) 🏥</option>
+            <option value="A_BORDO">A BORDO </option>
+            <option value="EN_TIERRA">EN TIERRA </option>
+            <option value="PERMISO">PERMISO  </option>
+            <option value="COMISION">COMISIÓN 📋 </option>
+            <option value="CATEGORIA">CATEGORÍA 🏥</option>
           </select>
         </div>
       </div>
