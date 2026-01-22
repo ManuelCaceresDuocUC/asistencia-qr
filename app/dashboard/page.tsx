@@ -147,7 +147,7 @@ export default async function DashboardPage(props: Props) {
                   <th className="p-4">Hora</th>
                   <th className="p-4">Nombre</th>
                   <th className="p-4">Estado</th>
-                  <th className="p-4">Detalle / Evidencia</th>
+                  <th className="p-4">Detalle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700 text-sm">
@@ -176,20 +176,6 @@ export default async function DashboardPage(props: Props) {
                       
                       <td className="p-4 align-top">
                         <div className="flex flex-col gap-1">
-                          
-                          {/* 👇 LÓGICA ACTUALIZADA PARA LA FOTO */}
-                          {registro.evidenceUrl ? (
-                            // Si es un registro ANTIGUO con foto, mostramos el link
-                            <a href={registro.evidenceUrl} target="_blank" className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 w-fit">
-                              <span>📷</span> <span className="text-xs">Ver Foto</span>
-                            </a>
-                          ) : (
-                            // Si es NUEVO (QR rápido) o Manual
-                            <span className="text-green-500/60 text-xs italic flex items-center gap-1 font-mono">
-                              ⚡ Sin foto adjunta
-                            </span>
-                          )}
-
                           {registro.description && (
                             <div className="flex items-start gap-1 mt-1 bg-gray-900/50 p-2 rounded border border-gray-700 max-w-xs">
                               <span className="text-lg leading-none">📝</span>
