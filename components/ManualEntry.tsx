@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { registrarManual } from '@/app/actions';
 
 // Asegúrate de que este tipo coincida con tu schema.prisma
-type EstadoAsistencia = 'A_BORDO' | 'EN_TIERRA' | 'PERMISO' | 'AUTORIZADO' | 'COMISION'| 'CATEGORIA';
+type EstadoAsistencia = 'A_BORDO'  | 'PERMISO' | 'COMISION'| 'CATEGORIA'| 'SIN_MARCAR';
 
 interface SimpleUser {
   id: string;
@@ -15,7 +15,7 @@ interface SimpleUser {
 export default function ManualEntry({ users }: { users: SimpleUser[] }) {
   const [selectedUser, setSelectedUser] = useState('');
   // Valor por defecto
-  const [selectedEstado, setSelectedEstado] = useState<EstadoAsistencia>('EN_TIERRA');
+  const [selectedEstado, setSelectedEstado] = useState<EstadoAsistencia>('SIN_MARCAR');
   const [description, setDescription] = useState('');
   
   // ESTADOS PARA FECHAS
@@ -99,7 +99,6 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
             onChange={(e) => setSelectedEstado(e.target.value as EstadoAsistencia)}
           >
             <option value="A_BORDO">A BORDO </option>
-            <option value="EN_TIERRA">EN TIERRA </option>
             <option value="PERMISO">PERMISO  </option>
             <option value="COMISION">COMISIÓN 📋 </option>
             <option value="CATEGORIA">CATEGORÍA 🏥</option>

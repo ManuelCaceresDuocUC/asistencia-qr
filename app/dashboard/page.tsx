@@ -53,7 +53,7 @@ export default async function DashboardPage(props: Props) {
   });
 
   // Variables para contadores
-  let aBordo = 0, enTierra = 0, permiso = 0, comision = 0, categoria = 0;
+  let aBordo = 0, permiso = 0, comision = 0, categoria = 0;
   
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
 
@@ -63,7 +63,6 @@ export default async function DashboardPage(props: Props) {
       const estado = estadoActualPorUsuario.get(user.id);
       
       if (estado === 'A_BORDO') aBordo++;
-      else if (estado === 'EN_TIERRA') enTierra++;
       else if (estado === 'PERMISO') permiso++;
       else if (estado === 'COMISION') comision++;
       else if (estado === 'CATEGORIA') categoria++;
@@ -75,7 +74,6 @@ export default async function DashboardPage(props: Props) {
   const getBadgeColor = (estado: string) => {
     switch (estado) {
       case 'A_BORDO': return 'bg-green-900 text-green-300 border-green-700';
-      case 'EN_TIERRA': return 'bg-yellow-900 text-yellow-300 border-yellow-700';
       case 'PERMISO': return 'bg-purple-900 text-purple-300 border-purple-700';
       case 'COMISION': return 'bg-cyan-900 text-cyan-300 border-cyan-700';
       case 'CATEGORIA': return 'bg-rose-900 text-rose-300 border-rose-700'; 
@@ -107,10 +105,7 @@ export default async function DashboardPage(props: Props) {
             <p className="text-gray-400 text-xs uppercase font-bold">A Bordo</p>
             <p className="text-2xl font-bold text-white">{aBordo}</p>
           </div>
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-yellow-500 shadow-lg">
-            <p className="text-gray-400 text-xs uppercase font-bold">En Tierra</p>
-            <p className="text-2xl font-bold text-white">{enTierra}</p>
-          </div>
+          
           <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-purple-500 shadow-lg">
             <p className="text-gray-400 text-xs uppercase font-bold">Permiso</p>
             <p className="text-2xl font-bold text-white">{permiso}</p>

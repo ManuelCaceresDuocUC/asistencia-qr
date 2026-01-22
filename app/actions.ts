@@ -104,7 +104,7 @@ export async function registrarManual(formData: FormData) {
     const endDateStr = formData.get('endDate') as string | null;
 
     // Casteo de tipos (Asegúrate que 'COMISION' esté en tu schema.prisma enum EstadoAsistencia)
-    const nuevoEstado = rawEstado as 'A_BORDO' | 'EN_TIERRA' | 'PERMISO' | 'AUTORIZADO' | 'COMISION';
+    const nuevoEstado = rawEstado as 'A_BORDO' | 'PERMISO'  | 'COMISION'|'CATEGORIA';
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return { success: false, message: "Usuario no encontrado" };

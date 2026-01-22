@@ -16,6 +16,7 @@ enum EstadoAsistencia {
   AUTORIZADO
   COMISION 
   CATEGORIA
+  SIN_MARCAR
 }
 
 model User {
