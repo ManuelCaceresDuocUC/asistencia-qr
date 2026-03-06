@@ -94,9 +94,9 @@ export default function ScanPage() {
         </p>
       </div>
 
-      <Link href="/dashboard" className="mt-8 text-gray-500 hover:text-white transition underline">
-        ← Volver al Dashboard
-      </Link>
+      <Link href="/" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition">
+              Volver al Inicio
+            </Link>
     </div>
   );
 }
