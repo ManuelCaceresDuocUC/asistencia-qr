@@ -15,7 +15,7 @@ interface SimpleUser {
 export default function ManualEntry({ users }: { users: SimpleUser[] }) {
   const [selectedUser, setSelectedUser] = useState('');
   // Valor por defecto
-  const [selectedEstado, setSelectedEstado] = useState<EstadoAsistencia>('SIN_MARCAR');
+  const [selectedEstado, setSelectedEstado] = useState<EstadoAsistencia>('A_BORDO');
   const [description, setDescription] = useState('');
   
   // ESTADOS PARA FECHAS
@@ -93,16 +93,16 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
         {/* SELECT ESTADO */}
         <div className="flex flex-col gap-2 min-w-[200px] flex-1">
           <label className="text-sm text-gray-400">Estado:</label>
-          <select 
-            className="bg-gray-900 text-white p-2 rounded border border-gray-600 h-10"
-            value={selectedEstado}
-            onChange={(e) => setSelectedEstado(e.target.value as EstadoAsistencia)}
-          >
-            <option value="A_BORDO">A BORDO </option>
-            <option value="PERMISO">PERMISO  </option>
-            <option value="COMISION">COMISIÓN 📋 </option>
-            <option value="CATEGORIA">CATEGORÍA 🏥</option>
-          </select>
+            <select 
+              className="bg-gray-900 text-white p-2 rounded border border-gray-600 h-10"
+              value={selectedEstado}
+              onChange={(e) => setSelectedEstado(e.target.value as EstadoAsistencia)}
+            >
+              <option value="A_BORDO">A BORDO</option>
+              <option value="PERMISO">PERMISO</option>
+              <option value="COMISION">COMISIÓN 📋</option>
+              <option value="CATEGORIA">CATEGORÍA 🏥</option>
+            </select>
         </div>
       </div>
 

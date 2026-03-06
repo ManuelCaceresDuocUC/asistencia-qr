@@ -1,231 +1,165 @@
-// app/actions.ts
 'use server'
 
 import { prisma } from "@/lib/db";
-import { s3Client } from "@/lib/s3";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { revalidatePath } from "next/cache";
+import { EstadoAsistencia } from "@prisma/client"; // Importa el Enum real
+/**
+ * Función auxiliar para obtener el rango de tiempo que usa el Dashboard (04:00 AM UTC)
+ */
+function getDashboardRange(fechaStr?: string) {
+    const baseDate = fechaStr 
+        ? fechaStr 
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+    
+    const start = new Date(`${baseDate}T04:00:00.000Z`);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    end.setMilliseconds(-1);
+    
+    return { start, end };
+}
 
 // ==============================================================================
-// 1. ACCIÓN QR (Se mantiene igual, lógica de foto y S3)
+// 1. ACCIÓN QR
 // ==============================================================================
 export async function registrarAsistencia(codigoLeido: string) {
-  // 1. Limpiamos espacios
-  const qrLimpio = codigoLeido.trim();
-  
-  console.log("🔍 BUSCANDO QR:", `"${qrLimpio}"`); 
+    const qrLimpio = codigoLeido.trim();
+    try {
+        if (!qrLimpio) return { success: false, message: 'Código QR vacío ❌' };
 
-  try {
-    if (!qrLimpio) return { success: false, message: 'Código QR vacío ❌' };
+        const user = await prisma.user.findUnique({ where: { qrCode: qrLimpio } });
+        if (!user) return { success: false, message: `QR no registrado: ${qrLimpio}` };
 
-    // 2. Buscamos el usuario por su QR
-    const user = await prisma.user.findUnique({ 
-        where: { qrCode: qrLimpio } 
-    });
-    
-    if (!user) {
-        console.log(`❌ No existe usuario con qrCode: ${qrLimpio}`);
-        return { success: false, message: `QR no registrado: ${qrLimpio}` };
-    }
+        // UNIFICADO: Usamos el rango de 04:00 AM
+        const { start, end } = getDashboardRange();
 
-    // ==========================================================
-    // 🛑 VALIDACIÓN ANTI-DUPLICADOS
-    // ==========================================================
-    
-    // Definimos el rango de "HOY" (00:00 a 23:59 del servidor)
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
-    // Buscamos si ESTE usuario ya tiene CUALQUIER registro hoy
-    const registroExistente = await prisma.assistance.findFirst({
-        where: {
-            userId: user.id,
-            timestamp: {
-                gte: startOfDay,
-                lte: endOfDay
-            }
-        }
-    });
-
-    if (registroExistente) {
-        // --- CASO A: YA EXISTE -> ACTUALIZAMOS ---
-        // Si ya estaba ingresado (manual o QR previo), solo actualizamos su estado y hora.
-        await prisma.assistance.update({
-            where: { id: registroExistente.id },
-            data: {
-                estado: 'A_BORDO',           // Forzamos "A Bordo" porque acaba de escanear
-                timestamp: new Date(),       // Actualizamos la hora a la actual
-                description: 'Escaneo QR Rápido ⚡ (Actualizado)' // Opcional: dejamos rastro
-            }
-        });
-
-        revalidatePath('/dashboard');
-        return { success: true, message: `🔄 ${user.nombre} actualizado a: A BORDO` };
-
-    } else {
-        // --- CASO B: NO EXISTE -> CREAMOS ---
-        await prisma.assistance.create({
-            data: {
+        const registroExistente = await prisma.assistance.findFirst({
+            where: {
                 userId: user.id,
-                estado: 'A_BORDO',
-                timestamp: new Date(),
-                evidenceUrl: null,
-                description: 'Escaneo QR Rápido ⚡'
+                timestamp: { gte: start, lte: end }
             }
         });
 
-        revalidatePath('/dashboard');
-        return { success: true, message: `✅ ${user.nombre} A Bordo` };
+        if (registroExistente) {
+            await prisma.assistance.update({
+                where: { id: registroExistente.id },
+                data: {
+                    estado: 'A_BORDO',
+                    timestamp: new Date(),
+                    description: 'Escaneo QR ⚡ (Actualizado)'
+                }
+            });
+            revalidatePath('/dashboard');
+            return { success: true, message: `🔄 ${user.nombre} actualizado a: A BORDO` };
+        } else {
+            await prisma.assistance.create({
+                data: {
+                    userId: user.id,
+                    estado: 'A_BORDO',
+                    timestamp: new Date(),
+                    description: 'Escaneo QR ⚡'
+                }
+            });
+            revalidatePath('/dashboard');
+            return { success: true, message: `✅ ${user.nombre} A Bordo` };
+        }
+    } catch (error) {
+        return { success: false, message: 'Error interno del servidor' };
     }
-
-  } catch (error) {
-    console.error("Error SERVER:", error);
-    return { success: false, message: 'Error interno del servidor' };
-  }
 }
+
 // ==============================================================================
-// 2. ACCIÓN MANUAL (Soporta Rangos de Fechas y Descripción)
+// 2. ACCIÓN MANUAL
 // ==============================================================================
 export async function registrarManual(formData: FormData) {
-  try {
-    // 1. Extraer datos del formulario
-    const userId = formData.get('userId') as string;
-    const rawEstado = formData.get('estado') as string;
-    
-    // Descripción
-    const descriptionRaw = formData.get('description') as string | null;
-    const description = descriptionRaw && descriptionRaw.trim() !== '' ? descriptionRaw : null;
-    
-    // Fechas para Rango (Bulk Create)
-    const startDateStr = formData.get('startDate') as string | null;
-    const endDateStr = formData.get('endDate') as string | null;
+    try {
+        const userId = formData.get('userId') as string;
+        const rawEstado = formData.get('estado') as string;
+        const descriptionRaw = formData.get('description') as string | null;
+        const description = descriptionRaw?.trim() || null;
+        const startDateStr = formData.get('startDate') as string | null;
+        const endDateStr = formData.get('endDate') as string | null;
 
-    // Casteo de tipos (Asegúrate que 'COMISION' esté en tu schema.prisma enum EstadoAsistencia)
-    const nuevoEstado = rawEstado as 'A_BORDO' | 'PERMISO'  | 'COMISION'|'CATEGORIA';
+    // Forzamos a que sea un valor válido del Enum
+         const nuevoEstado = rawEstado.trim() as EstadoAsistencia;
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return { success: false, message: "Usuario no encontrado" };
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return { success: false, message: "Usuario no encontrado" };
 
-    // =====================================================================
-    // CASO A: RANGO DE FECHAS (Creación Masiva)
-    // =====================================================================
-    if (startDateStr && endDateStr) {
-      const start = new Date(startDateStr);
-      const end = new Date(endDateStr);
-      
-      // Ajustamos hora a mediodía UTC para evitar saltos de día por zona horaria
-      start.setUTCHours(12, 0, 0, 0);
-      end.setUTCHours(12, 0, 0, 0);
+        // CASO A: RANGO DE FECHAS
+        if (startDateStr && endDateStr) {
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+            start.setUTCHours(12, 0, 0, 0);
+            end.setUTCHours(12, 0, 0, 0);
 
-      const recordsToCreate = [];
-      const current = new Date(start);
+            const recordsToCreate = [];
+            const current = new Date(start);
+            while (current <= end) {
+                recordsToCreate.push({
+                    userId,
+                    estado: nuevoEstado,
+                    description,
+                    timestamp: new Date(current)
+                });
+                current.setDate(current.getDate() + 1);
+            }
+            await prisma.$transaction(recordsToCreate.map(data => prisma.assistance.create({ data })));
+            revalidatePath('/dashboard');
+            return { success: true, message: `✅ Registros generados (Rango)` };
+        }
 
-      // Bucle: Generamos un objeto por cada día
-      while (current <= end) {
-        recordsToCreate.push({
-          userId: userId,
-          estado: nuevoEstado,
-          description: description, // La misma descripción para todos los días
-          evidenceUrl: null,
-          timestamp: new Date(current) // Importante: Nueva instancia de fecha
+        // CASO B: REGISTRO SIMPLE (HOY) - UNIFICADO CON DASHBOARD
+        const { start, end } = getDashboardRange();
+
+        const registroHoy = await prisma.assistance.findFirst({
+            where: { 
+                userId,
+                timestamp: { gte: start, lte: end }
+            }
         });
 
-        // Avanzamos un día
-        current.setDate(current.getDate() + 1);
-      }
-
-      // Ejecutamos transacción en base de datos
-      await prisma.$transaction(
-        recordsToCreate.map(data => prisma.assistance.create({ data }))
-      );
-
-      revalidatePath('/dashboard');
-      return { 
-        success: true, 
-        message: `✅ Se generaron ${recordsToCreate.length} registros para ${user.nombre} (Del ${startDateStr} al ${endDateStr})` 
-      };
-    }
-
-    // =====================================================================
-    // CASO B: REGISTRO SIMPLE (HOY)
-    // =====================================================================
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-
-    const registroHoy = await prisma.assistance.findFirst({
-      where: { 
-        userId: userId,
-        timestamp: { gte: todayStart, lte: todayEnd }
-      },
-      orderBy: { timestamp: 'desc' }
-    });
-
-    if (registroHoy) {
-      // ACTUALIZAR (Ya existe registro hoy)
-      await prisma.assistance.update({
-        where: { id: registroHoy.id },
-        data: { 
-          estado: nuevoEstado,
-          description: description 
+        if (registroHoy) {
+            await prisma.assistance.update({
+                where: { id: registroHoy.id },
+                data: { estado: nuevoEstado, description }
+            });
+        } else {
+            await prisma.assistance.create({
+                data: { userId, estado: nuevoEstado, description, timestamp: new Date() }
+            });
         }
-      });
-      
-      revalidatePath('/dashboard');
-      return { success: true, message: `✅ Registro corregido: ${user.nombre} -> ${nuevoEstado}` };
 
-    } else {
-      // CREAR (Nuevo registro hoy)
-      await prisma.assistance.create({
-        data: {
-          userId: userId,
-          estado: nuevoEstado,
-          evidenceUrl: null,
-          description: description
-        }
-      });
+        revalidatePath('/dashboard');
+        return { success: true, message: `✅ Registro manual exitoso` };
 
-      revalidatePath('/dashboard');
-      return { success: true, message: `✅ Nuevo registro: ${user.nombre} (${nuevoEstado})` };
+    } catch (error) {
+        console.error(error);
+        return { success: false, message: "Error al guardar manual" };
     }
-
-  } catch (error) {
-    console.error("Error en registrarManual:", error);
-    return { success: false, message: "Error al guardar manual" };
-  }
 }
 
-// 3. ACCIÓN PARA LIMPIAR EL DÍA (DELETE)
+// 3. ACCIÓN PARA LIMPIAR EL DÍA
 export async function limpiarRegistrosDia(fechaStr: string) {
-  try {
-    // Definimos el mismo rango de horario que usas en el Dashboard
-    // Inicio: 04:00 AM UTC (aprox 00:00 Chile)
-    const startOfDay = new Date(`${fechaStr}T04:00:00.000Z`);
-    
-    // Fin: 04:00 AM UTC del día siguiente
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
-    endOfDay.setMilliseconds(-1);
+    try {
+        const { start, end } = getDashboardRange(fechaStr);
+        const deleted = await prisma.assistance.deleteMany({
+            where: { timestamp: { gte: start, lte: end } }
+        });
+        revalidatePath('/dashboard');
+        return { success: true, message: `🗑️ Se eliminaron ${deleted.count} registros.` };
+    } catch (error) {
+        return { success: false, message: "Error al borrar." };
+    }
+}
 
-    // Borramos TODOS los registros dentro de ese rango
-    const deleted = await prisma.assistance.deleteMany({
-      where: {
-        timestamp: {
-          gte: startOfDay,
-          lte: endOfDay
-        }
-      }
-    });
-
-    revalidatePath('/dashboard');
-    return { success: true, message: `🗑️ Se eliminaron ${deleted.count} registros del día ${fechaStr}.` };
-
-  } catch (error) {
-    console.error("Error al limpiar:", error);
-    return { success: false, message: "Error al intentar borrar los registros." };
-  }
+// 4. ELIMINAR UNO
+export async function eliminarRegistro(id: string) {
+    try {
+        await prisma.assistance.delete({ where: { id } });
+        revalidatePath('/dashboard');
+        return { success: true, message: `🗑️ Registro eliminado.` };
+    } catch (error) {
+        return { success: false, message: "Error al eliminar." };
+    }
 }
