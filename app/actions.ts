@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { EstadoAsistencia } from "@prisma/client"; // Importa el Enum real
+import { EstadoAsistencia } from "@prisma/client"; 
+
 /**
  * Función auxiliar para obtener el rango de tiempo que usa el Dashboard (04:00 AM UTC)
  */
@@ -80,8 +81,8 @@ export async function registrarManual(formData: FormData) {
         const startDateStr = formData.get('startDate') as string | null;
         const endDateStr = formData.get('endDate') as string | null;
 
-    // Forzamos a que sea un valor válido del Enum
-         const nuevoEstado = rawEstado.trim() as EstadoAsistencia;
+        // Forzamos a que sea un valor válido del Enum
+        const nuevoEstado = rawEstado.trim() as EstadoAsistencia;
 
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) return { success: false, message: "Usuario no encontrado" };

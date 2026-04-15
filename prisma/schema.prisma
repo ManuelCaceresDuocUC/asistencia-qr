@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,32 +7,129 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id          String       @id @default(uuid())
+  nombre      String
+  qrCode      String       @unique
+  createdAt   DateTime     @default(now())
+  assistances Assistance[]
+}
+
+
+model Assistance {
+  id          String           @id @default(uuid())
+  timestamp   DateTime         @default(now())
+  evidenceUrl String?
+  estado      EstadoAsistencia @default(A_BORDO)
+  userId      String
+  description String?
+  user        User             @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "Assistance_userId_fkey")
+}
+
+model Product {
+  id           String     @id
+  nombre       String
+  codigoBarras String     @unique
+  precio       Decimal    @db.Decimal(10, 2)
+  stock        Int        @default(0)
+  categoria    String?
+  activo       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime
+  SaleItem     SaleItem[]
+}
+
+model Sale {
+  id         String     @id
+  timestamp  DateTime   @default(now())
+  total      Decimal    @db.Decimal(10, 2)
+  metodoPago String     @default("EFECTIVO")
+  SaleItem   SaleItem[]
+}
+
+model SaleItem {
+  id             String  @id
+  saleId         String
+  productId      String
+  cantidad       Int     @default(1)
+  precioUnitario Decimal @db.Decimal(10, 2)
+  Product        Product @relation(fields: [productId], references: [id])
+  Sale           Sale    @relation(fields: [saleId], references: [id])
+
+  @@index([productId], map: "SaleItem_productId_fkey")
+  @@index([saleId], map: "SaleItem_saleId_fkey")
+}
+
+model pos_productos {
+  id                                                           BigInt                @id @default(autoincrement())
+  descripcion                                                  String                @db.VarChar(255)
+  precio                                                       Float
+  stock                                                        Float
+  stock_critico                                                Float?
+  codigo_barras                                                String?               @unique(map: "UK9jareuo08cbex7vf9sn8dbnnj") @db.VarChar(255)
+  es_insumo                                                    Boolean?              @db.Bit(1)
+  unidad_medida                                                String?               @db.VarChar(255)
+  venta_id                                                     BigInt?
+  pos_ventas                                                   pos_ventas?           @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK3mcgdqqaxilnhnldil8ydok3n")
+  pos_recetas_pos_recetas_producto_principal_idTopos_productos pos_recetas[]         @relation("pos_recetas_producto_principal_idTopos_productos")
+  pos_recetas_pos_recetas_producto_idTopos_productos           pos_recetas[]         @relation("pos_recetas_producto_idTopos_productos")
+  pos_recetas_pos_recetas_insumo_idTopos_productos             pos_recetas[]         @relation("pos_recetas_insumo_idTopos_productos")
+  pos_ventas_detalles                                          pos_ventas_detalles[]
+
+  @@index([venta_id], map: "FK3mcgdqqaxilnhnldil8ydok3n")
+}
+
+model pos_recetas {
+  id                                                             BigInt         @id @default(autoincrement())
+  cantidad_usada                                                 Float
+  insumo_id                                                      BigInt?
+  producto_id                                                    BigInt?
+  producto_principal_id                                          BigInt?
+  pos_productos_pos_recetas_producto_principal_idTopos_productos pos_productos? @relation("pos_recetas_producto_principal_idTopos_productos", fields: [producto_principal_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK1owab3lnqs2smiewi50k2afsd")
+  pos_productos_pos_recetas_producto_idTopos_productos           pos_productos? @relation("pos_recetas_producto_idTopos_productos", fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK3948k630l9vfcfeb9tdqjww5g")
+  pos_productos_pos_recetas_insumo_idTopos_productos             pos_productos? @relation("pos_recetas_insumo_idTopos_productos", fields: [insumo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FKahtiuej17e4q8dnu13ewkmuqq")
+
+  @@index([producto_principal_id], map: "FK1owab3lnqs2smiewi50k2afsd")
+  @@index([producto_id], map: "FK3948k630l9vfcfeb9tdqjww5g")
+  @@index([insumo_id], map: "FKahtiuej17e4q8dnu13ewkmuqq")
+}
+
+model pos_usuarios {
+  id         BigInt  @id @default(autoincrement())
+  contrasena String? @db.VarChar(255)
+  usuario    String? @unique(map: "UKjg05qeh564qbjmpi8rqddns5a") @db.VarChar(255)
+}
+
+model pos_ventas {
+  id                  BigInt                @id @default(autoincrement())
+  fecha_hora          DateTime?             @db.DateTime(6)
+  metodo_pago         String?               @db.VarChar(255)
+  total               Float
+  pos_productos       pos_productos[]
+  pos_ventas_detalles pos_ventas_detalles[]
+}
+
+model pos_ventas_detalles {
+  id              BigInt         @id @default(autoincrement())
+  cantidad        Float?
+  precio_unitario Float?
+  producto_id     BigInt?
+  venta_id        BigInt?
+  pos_productos   pos_productos? @relation(fields: [producto_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FKc2pklws6i8kwugsd5moobtkhs")
+  pos_ventas      pos_ventas?    @relation(fields: [venta_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FKk8s4kdqgdkidhqaksnu72grin")
+
+  @@index([producto_id], map: "FKc2pklws6i8kwugsd5moobtkhs")
+  @@index([venta_id], map: "FKk8s4kdqgdkidhqaksnu72grin")
+}
+
 enum EstadoAsistencia {
   A_BORDO
   EN_TIERRA
   PERMISO
   AUTORIZADO
-  COMISION 
+  COMISION
   CATEGORIA
   SIN_MARCAR
-}
-
-model User {
-  id          String   @id @default(uuid())
-  nombre      String
-  // email    String?  <-- ESTA LÍNEA LA BORRAMOS
-  qrCode      String   @unique
-  createdAt   DateTime @default(now())
-  assistances Assistance[]
-}
-
-model Assistance {
-  id            String   @id @default(uuid())
-  timestamp     DateTime @default(now())
-  evidenceUrl   String?
-  estado        EstadoAsistencia @default(A_BORDO)
-  
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  description   String?
 }

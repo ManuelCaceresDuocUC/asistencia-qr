@@ -4,7 +4,6 @@ import ManualEntry from "@/components/ManualEntry";
 import DateFilter from "@/components/DateFilter";
 import { unstable_noStore as noStore } from 'next/cache';
 import ClearButton from "@/components/ClearButton"; 
-import { eliminarRegistro } from "../actions";
 import { BotonEliminar } from "@/components/BotonEliminar";
 
 export const dynamic = 'force-dynamic';
@@ -18,8 +17,8 @@ export default async function DashboardPage(props: Props) {
   noStore();
 
   // --- 1. PROCESAMIENTO DE PARÁMETROS ---
-  const searchParams = await props.searchParams;//searchaparams va a ser el await del prop que recibimos como argumento
-  const dateFromUrl = typeof searchParams.date === 'string' ? searchParams.date : undefined;//operador ternario, aca busca el parametro date ne el searchparams
+  const searchParams = await props.searchParams;
+  const dateFromUrl = typeof searchParams.date === 'string' ? searchParams.date : undefined;
 
   // --- 2. CÁLCULO DE FECHAS ---
   const chileTime = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
@@ -31,11 +30,11 @@ export default async function DashboardPage(props: Props) {
   endOfDay.setMilliseconds(-1); 
 
   // --- 3. CONSULTAS DB ---
-  const allUsers = await prisma.user.findMany({//obtenemos los nombres de los usuarios y se ordenan de forma asc
+  const allUsers = await prisma.user.findMany({
     orderBy: { nombre: 'asc' }
   });
 
-  const asistenciasDelDia = await prisma.assistance.findMany({ //obtenemos las asistencias del dia desde la base de datos
+  const asistenciasDelDia = await prisma.assistance.findMany({
     where: {
       timestamp: {
         gte: startOfDay,
@@ -48,14 +47,14 @@ export default async function DashboardPage(props: Props) {
 
   // --- 4. LÓGICA DE CONTADORES ---
   const estadoActualPorUsuario = new Map();
-  asistenciasDelDia.forEach((registro) => { //por cada asistencia del dia
-    if (!estadoActualPorUsuario.has(registro.userId)) {//evaluamos si no tiene registro por ID
-      estadoActualPorUsuario.set(registro.userId, registro.estado);//si no tiene le seteamos el registro al user y el estado
+  asistenciasDelDia.forEach((registro) => {
+    if (!estadoActualPorUsuario.has(registro.userId)) {
+      estadoActualPorUsuario.set(registro.userId, registro.estado);
     }
   });
 
   // Variables para contadores
-  let aBordo = 0, permiso = 0, comision = 0, categoria = 0; // variables de estados
+  let aBordo = 0, permiso = 0, comision = 0, categoria = 0; 
   
   const sinRegistroIds = new Set(allUsers.map(u => u.id));
 
@@ -80,11 +79,9 @@ export default async function DashboardPage(props: Props) {
       case 'PERMISO': return 'bg-purple-900 text-purple-300 border-purple-700';
       case 'COMISION': return 'bg-cyan-900 text-cyan-300 border-cyan-700';
       case 'CATEGORIA': return 'bg-rose-900 text-rose-300 border-rose-700';
-      default: return 'bg-gray-700 text-gray-300'; // Este es el gris que ves ahora
+      default: return 'bg-gray-700 text-gray-300'; 
     }
   };
-
-  
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">

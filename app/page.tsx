@@ -21,12 +21,7 @@ export default function Home() {
             📷 Registrar Entrada
           </Link>
 
-          <Link 
-            href="/dashboard" 
-            className="flex items-center justify-center gap-3 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-semibold py-4 px-8 rounded-xl transition-all"
-          >
-            📋 Ver Historial
-          </Link>
+          
         </div>
       </div>
     </main>
