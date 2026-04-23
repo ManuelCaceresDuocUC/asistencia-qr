@@ -70,7 +70,7 @@ export default async function DashboardPage(props: Props) {
     }
   });
   const sinMarcar = sinRegistroIds.size;
-
+  const usuariosSinMarcar = allUsers.filter(user => sinRegistroIds.has(user.id));
   // --- 5. COLORES DE ESTADOS ---
   const getBadgeColor = (estado: string) => {
     const norm = estado ? estado.toString().trim() : "";
@@ -123,9 +123,30 @@ export default async function DashboardPage(props: Props) {
             <p className="text-2xl font-bold text-white">{categoria}</p>
           </div>
 
-          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-red-500 shadow-lg">
+          <div className="bg-gray-800 p-4 rounded-xl border-l-4 border-red-500 shadow-lg relative">
             <p className="text-gray-400 text-xs uppercase font-bold">Sin Marcar</p>
             <p className="text-2xl font-bold text-red-400">{sinMarcar}</p>
+            
+            {/* Desplegable de usuarios */}
+            {usuariosSinMarcar.length > 0 && (
+              <details className="group mt-1">
+                <summary className="cursor-pointer text-xs text-red-400 hover:text-red-300 list-none [&::-webkit-details-marker]:hidden flex items-center gap-1 font-semibold transition-colors">
+                  Ver lista
+                  <span className="transition-transform group-open:rotate-180">▼</span>
+                </summary>
+                
+                {/* Contenedor absoluto para que flote sobre el resto del contenido */}
+                <div className="absolute z-50 top-full left-0 mt-2 w-full min-w-[200px] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-h-48 overflow-y-auto">
+                  <ul className="text-sm divide-y divide-gray-800">
+                    {usuariosSinMarcar.map((u) => (
+                      <li key={u.id} className="p-2 px-3 text-gray-300 hover:bg-gray-700 transition-colors">
+                        {u.nombre}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            )}
           </div>
 
         </div>

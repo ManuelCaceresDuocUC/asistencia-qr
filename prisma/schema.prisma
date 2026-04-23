@@ -23,7 +23,9 @@ model Assistance {
   estado      EstadoAsistencia @default(A_BORDO)
   userId      String
   description String?
-  user        User             @relation(fields: [userId], references: [id])
+  
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade) // <--- Agrega onDelete: Cascade
+  
 
   @@index([userId], map: "Assistance_userId_fkey")
 }

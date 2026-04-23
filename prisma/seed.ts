@@ -3,8 +3,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-
-  // Lista de personal
+  // Tu lista de personal (la que manda)
   const personal = [
     { nombre: "Sepulveda", qrCode: "663898-8" },
     { nombre: "Vallejos", qrCode: "585709-5" },
@@ -15,7 +14,6 @@ async function main() {
     { nombre: "Olivares", qrCode: "612311-8" },
     { nombre: "Toledo", qrCode: "612911-2" },
     { nombre: "Arratia", qrCode: "611111-8" },
-    { nombre: "Zambrano", qrCode: "XZambrano"},
     { nombre: "Tapia", qrCode: "XTapia"},
     { nombre: "Ahumada", qrCode: "591912-6" },
     { nombre: "Torres", qrCode: "593712-3" },
@@ -23,7 +21,7 @@ async function main() {
     { nombre: "Aguila", qrCode: "602414-7" },
     { nombre: "Perez", qrCode: "617517-7" },
     { nombre: "Araya", qrCode: "616217-5" },
-    { nombre: "Cabrera", qrCode: "DCabrera"},
+    { nombre: "Tarifeño", qrCode: "DCabrera"},
     { nombre: "Espinoza", qrCode: "JEspinoza"},
     { nombre: "Martinez", qrCode: "OMartinez"},
     { nombre: "Delgado", qrCode: "ADelgado"},
@@ -35,24 +33,37 @@ async function main() {
     { nombre: "Carvajal", qrCode: "610023-3" },
     { nombre: "Ojeda", qrCode: "DOjeda"},
     { nombre: "Cordova", qrCode: "597224-6" },
-    { nombre: "Díaz", qrCode: "JDiaz"},
     { nombre: "Abarca", qrCode: "628225-7" },
-    { nombre: "Leiton", qrCode: "629025-8" },
     { nombre: "Garcia", qrCode: "628825-1" },
     { nombre: "Vidal", qrCode: "FVidal"},
     { nombre: "Pastor", qrCode: "FPastor"},
     { nombre: "Sazo", qrCode: "BSazo"},
-    { nombre: "Guzman", qrCode: "CGuzman"},
-    { nombre: "Rodriguez", qrCode: "NRodriguez"},
-    { nombre: "Guerra", qrCode: "SGuerra"}
+    { nombre: "Guerra", qrCode: "SGuerra"},
+    { nombre: "Ramirez", qrCode: "PRamirez"}
   ];
 
-  console.log('🌱 Comenzando la carga/actualización de datos...')
+  console.log('🌱 Comenzando la sincronización total...')
 
+  // --- PASO 1: Obtener todos los QR que queremos conservar ---
+  const qrsAKeep = personal.map(p => p.qrCode);
+
+  // --- PASO 2: Borrar de la DB los que NO están en la lista ---
+  const deleted = await prisma.user.deleteMany({
+    where: {
+      qrCode: {
+        notIn: qrsAKeep
+      }
+    }
+  });
+  
+  if (deleted.count > 0) {
+    console.log(`🗑️ Se eliminaron ${deleted.count} usuarios que ya no están en la lista.`);
+  }
+
+  // --- PASO 3: Ejecutar el upsert para actualizar o crear los actuales ---
   for (const persona of personal) {
     const usuario = await prisma.user.upsert({
       where: { qrCode: persona.qrCode }, 
-      // 👇 IMPORTANTE: Esto actualiza el nombre si el QR ya existe
       update: {
         nombre: persona.nombre 
       }, 
@@ -61,10 +72,10 @@ async function main() {
         qrCode: persona.qrCode
       }
     })
-    console.log(`✅ Usuario procesado: ${usuario.nombre} (QR: ${usuario.qrCode})`)
+    console.log(`✅ Usuario procesado: ${usuario.nombre}`)
   }
 
-  console.log('🏁 Carga finalizada.')
+  console.log('🏁 Sincronización finalizada con éxito.')
 }
 
 main()
