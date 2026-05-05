@@ -25,7 +25,7 @@ export default function ManualEntry({ users }: { users: SimpleUser[] }) {
   const [loading, setLoading] = useState(false);
 
   // 👇 Aquí definimos qué estados activan el calendario de rango
-  const estadosDeRango = ['CATEGORIA'];
+  const estadosDeRango = ['CATEGORIA','COMISION','PERMISO'];
   
   const showDateRange = estadosDeRango.includes(selectedEstado);
 
